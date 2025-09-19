@@ -1,6 +1,6 @@
 import { Application, Ticker, Container, Graphics, Assets } from 'pixi.js';
 import InputHandler from './input.js';
-import { io } from "socket.io-client";
+import Network from "./network.js";
 import Ship from "./ship.js";
 
 
@@ -11,12 +11,13 @@ import Ship from "./ship.js";
     const tickInterval = 1000 / tickRate;
     const baseWidth = 800;
     const baseHeight = 600;
+    const margin = 40;
     
     const app = new Application();
     const ticker = new Ticker();
     const gameWorld = new Container();
     const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000', 0).stroke(2, '#ff0000');
-    const socket = io("http://localhost:3000");
+    const network = new Network("http://localhost:3000");
 
     let accumulator = 0;
 
@@ -46,15 +47,31 @@ import Ship from "./ship.js";
 
     window.addEventListener('resize', resizeGame);
     
-    // const { shipOne, shipTwo } = await setup(gameWorld);
-    const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2);
-    const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3);
+    const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin);
+    const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin);
     gameWorld.addChild(shipOne.sprite);
-    const input = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, socket);
+    gameWorld.addChild(shipTwo.sprite);
+    const input = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, network);
     resizeGame();
 
-    socket.on("connect", () => {
-        console.log("connected to server");
+    network.autoJoin();
+
+    network.onRoomJoined(({ roomId, playerIndex, state }) => {
+        console.log("Joined room:", roomId, "as player", playerIndex);
+        // Optional: assign which ship is controlled by this client
+        // If playerIndex === 0, control shipOne; else control shipTwo
+        input.setPlayerIndex(playerIndex);
+    });
+
+    network.onPlayerMoved(({ id, pos }) => {
+        // Update the other player's ship
+        if (id !== network.socket.id) {
+            // Determine which ship is the other player
+            const otherShip = input.playerIndex === 0 ? shipTwo : shipOne;
+            otherShip.sprite.x = pos.x;
+            otherShip.sprite.y = pos.y;
+            otherShip.sprite.rotation = pos.rotation;
+        }
     });
     
     ticker.add(() => {

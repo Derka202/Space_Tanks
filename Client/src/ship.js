@@ -2,22 +2,47 @@ import { Sprite, Assets } from "pixi.js";
 import { createBullet } from "./bullets.js";
 
 export default class Ship {
-    constructor(texture, x, y, rotation = 0, scale = 2) {
+    constructor(texture, x, y, rotation = 0, scale = 2, bounds = { width: 800, height: 600 }, margin = 5) {
         this.sprite = new Sprite(texture);
-        this.sprite.pivot.set(this.sprite.width / 2, this.sprite.height / 2);
+        this.sprite.pivot.set(texture.width / 2, texture.height / 2);
         this.sprite.x = x;
         this.sprite.y = y;
         this.sprite.rotation = rotation;
         this.sprite.scale.set(scale);
+        this.bounds = bounds;
+        this.margin = margin;
 
         this.speed = 2;
         this.rotationSpeed = 0.05;
         this.bullets = [];
     }
 
-    move(dx, dy) {
-        this.sprite.x += dx * this.speed;
-        this.sprite.y += dy * this.speed;
+    move(dx, dy, otherShip) {
+        const nextX = this.sprite.x + dx * this.speed;
+        const nextY = this.sprite.y + dy * this.speed;
+
+        const clampedX = Math.min(Math.max(nextX, this.margin), this.bounds.width - this.margin);
+        const clampedY = Math.min(Math.max(nextY, this.margin), this.bounds.height - this.margin);
+
+        if (otherShip) {
+            const padding = -20;
+
+            const dxShip = clampedX - otherShip.sprite.x;
+            const dyShip = clampedY - otherShip.sprite.y;
+            const distance = Math.sqrt(dxShip * dxShip + dyShip * dyShip);
+            const minDistance = (this.sprite.width + otherShip.sprite.width) / 2 + padding;
+
+            if (distance < minDistance) {
+                const angle = Math.atan2(dyShip, dxShip);
+                this.sprite.x = otherShip.sprite.x + Math.cos(angle) * minDistance;
+                this.sprite.y = otherShip.sprite.y + Math.sin(angle) * minDistance;
+                return;
+            }
+    }
+
+    // Apply movement if no collision
+    this.sprite.x = clampedX;
+    this.sprite.y = clampedY;
     }
 
     rotate(dir) {
