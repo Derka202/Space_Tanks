@@ -50,18 +50,19 @@ export default class InputHandler {
         }
         
 
-        if (this.keys["w"]) this.shipOne.move(0, -2, this.shipTwo);
-        if (this.keys["s"]) this.shipOne.move(0, 2, this.shipTwo);
-        if (this.keys["a"]) this.shipOne.move(-2, 0, this.shipTwo);
-        if (this.keys["d"]) this.shipOne.move(2, 0, this.shipTwo);
-        if (this.keys["e"]) this.shipOne.rotate(1);
-        if (this.keys["q"]) this.shipOne.rotate(-1);
+        const myShip = this.playerIndex === 0 ? this.shipOne : this.shipTwo;
+        const otherShip = this.playerIndex === 0 ? this.shipTwo : this.shipOne;
+
+        if (this.keys["w"]) myShip.move(0, -2, otherShip);
+        if (this.keys["s"]) myShip.move(0, 2, otherShip);
+        if (this.keys["a"]) myShip.move(-2, 0, otherShip);
+        if (this.keys["d"]) myShip.move(2, 0, otherShip);
+        if (this.keys["e"]) myShip.rotate(1);
+        if (this.keys["q"]) myShip.rotate(-1);
         if (this.keys[" "]) {
-            this.shipOne.fire(this.shipOne.sprite.parent);
+            myShip.fire(myShip.sprite.parent);
             this.keys[" "] = false;
         }
-
-        if (this.keysDiv) return this.keysDiv.innerHTML;
     }
 
     isMoving() {
