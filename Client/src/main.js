@@ -1,19 +1,22 @@
-import { Application, Ticker, Container, Graphics } from 'pixi.js';
+import { Application, Ticker, Container, Graphics, Assets } from 'pixi.js';
 import InputHandler from './input.js';
-import { setup, baseWidth, baseHeight } from './setup.js';
 import { io } from "socket.io-client";
+import Ship from "./ship.js";
 
 
 // Main loop
 (async () => {
     // Set up constants
+    const tickRate = 30;
+    const tickInterval = 1000 / tickRate;
+    const baseWidth = 800;
+    const baseHeight = 600;
+    
     const app = new Application();
     const ticker = new Ticker();
     const gameWorld = new Container();
     const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000', 0).stroke(2, '#ff0000');
     const socket = io("http://localhost:3000");
-    const tickRate = 30;
-    const tickInterval = 1000 / tickRate;
 
     let accumulator = 0;
 
@@ -43,7 +46,10 @@ import { io } from "socket.io-client";
 
     window.addEventListener('resize', resizeGame);
     
-    const { shipOne, shipTwo } = await setup(gameWorld);
+    // const { shipOne, shipTwo } = await setup(gameWorld);
+    const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2);
+    const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3);
+    gameWorld.addChild(shipOne.sprite);
     const input = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, socket);
     resizeGame();
 
@@ -56,8 +62,7 @@ import { io } from "socket.io-client";
 
         while (accumulator >= tickInterval) {
             input.update();
-
-            console.log('sssss')
+            shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
 
             accumulator -= tickInterval;
         }

@@ -1,6 +1,13 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 
+
+const gameState = {
+  p1: { x: 40, y: 300, rotation: (Math.PI / 2) },
+  p2: { x: 760, y: 300, rotation: (Math.PI / 2) * 3 },
+  turn: 1
+};
+
 // Create HTTP server
 const httpServer = createServer();
 
@@ -24,8 +31,14 @@ io.on("connection", (socket) => {
   socket.emit("welcome", "Hello from server!");
 
   socket.on("keyInput", (keys) => {
-    console.log(keys);
+    //console.log(keys);
   });
+
+  socket.on("updatePosition", (pos) => {
+    gameState.p1 = pos;
+
+    console.log(gameState);
+  })
 });
 
 // Start the server
