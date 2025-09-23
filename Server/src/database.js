@@ -33,7 +33,7 @@ async function createUser(username, password) {
 ///Verify user login
 async function isValidUser(username, password) {
     const [result] = await pool.execute("SELECT user_id FROM users WHERE username = ? AND password = ?", [username, password]);
-    return rows.length > 0 ? result[0].user_id : null;
+    return result.length > 0 ? result[0].user_id : null;
 }
 
 ///Get user highscore
@@ -74,8 +74,8 @@ async function logActionTime(gameId, userId, currentScore) {
 ///Record game stats
 async function recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore) {
     try {
-        const [result1] = await pool.execute("UPDATE participants SET score = ?, last_action_time = NOW(), is_winner = True WHERE game_id = ? AND user_id = ?", [winnerScore, gameId, winnerId]);
-        const [result2] = await pool.execute("UPDATE participants SET score = ?, last_action_time = NOW(), is_winner = False WHERE game_id = ? AND user_id = ?", [loserScore, gameId, loserId]);
+        const [result1] = await pool.execute("UPDATE participants SET score = ?, last_action_time = NOW(), is_winner = 1 WHERE game_id = ? AND user_id = ?", [winnerScore, gameId, winnerId]);
+        const [result2] = await pool.execute("UPDATE participants SET score = ?, last_action_time = NOW(), is_winner = 0 WHERE game_id = ? AND user_id = ?", [loserScore, gameId, loserId]);
         const [result3] = await pool.execute("UPDATE users SET win_count = win_count + 1, highest_score = GREATEST(highest_score, ?) WHERE user_id = ?", [winnerScore, winnerId]);
         return result1;   
     } catch (error) {
