@@ -5,7 +5,6 @@ export default class InputHandler {
         this.keys = {};
         this.shipOne = shipOne;
         this.shipTwo = shipTwo;
-        this.margin = 5;
         this.network = network;
         this.getScale = getScale;
         this.baseWidth = baseWidth;
@@ -13,13 +12,9 @@ export default class InputHandler {
         this.position = {
             x: null, y: null, rotation: null
         };
-        this.movement = false;
 
         window.addEventListener('keydown', (e) => {
             if (validInput.includes(e.key.toLowerCase())) {
-                if (!this.isMoving()) {
-                    this.position = this.shipOne.getPosition();
-                }
                 this.keys[e.key.toLowerCase()] = true;
             }
         });
@@ -27,28 +22,15 @@ export default class InputHandler {
         window.addEventListener('keyup', (e) => {
             if (validInput.includes(e.key.toLowerCase())) {
                 this.keys[e.key.toLowerCase()] = false;
-
-                if (!this.isMoving()) {
-                    this.position = this.shipOne.getPosition();
-                }
+                this.network.sendPosition(this.playerIndex === 0 ? this.shipOne.getPosition() : this.shipTwo.getPosition());
+                console.log(this.position);
             }
-            console.log(this.position);
-            this.network.sendPosition(this.playerIndex === 0 ? this.shipOne.getPosition() : this.shipTwo.getPosition());
         });
     }
 
     update() {
         if (this.keysDiv) this.keysDiv.innerHTML = JSON.stringify(this.keys);
-        const scale = this.getScale();
-
-        for (const k in this.keys) {
-            if (this.keys[k] === true) {
-                //this.socket.emit("keyInput", this.keys);
-                break;
-            }
-            else this.movement = false;
-        }
-        
+        // const scale = this.getScale();      
 
         const myShip = this.playerIndex === 0 ? this.shipOne : this.shipTwo;
         const otherShip = this.playerIndex === 0 ? this.shipTwo : this.shipOne;
@@ -60,9 +42,17 @@ export default class InputHandler {
         if (this.keys["e"]) myShip.rotate(1);
         if (this.keys["q"]) myShip.rotate(-1);
         if (this.keys[" "]) {
-            myShip.fire(myShip.sprite.parent);
+            const bullet = myShip.fire(this.shipOne.sprite.parent);
+
+            this.network.sendBullet({
+                x: bullet.x,
+                y: bullet.y,
+                rotation: bullet.rotation
+            });
+
             this.keys[" "] = false;
         }
+
     }
 
     isMoving() {

@@ -4,9 +4,7 @@ import Network from "./network.js";
 import Ship from "./ship.js";
 
 
-// Main loop
 (async () => {
-    // Set up constants
     const tickRate = 30;
     const tickInterval = 1000 / tickRate;
     const baseWidth = 800;
@@ -28,8 +26,29 @@ import Ship from "./ship.js";
     });
     app.canvas.style.position = 'absolute';
     document.body.appendChild(app.canvas);
-    gameWorld.addChild(border);
+
+    // const loginScene = new LoginScene(handleLoginChoice);
+    // app.stage.addChild(loginScene);
+
+    function handleLoginChoice(choice) {
+        console.log("User chose:", choice);
+
+        if (choice.type === "guest") {
+            startGame("Guest_" + Math.floor(Math.random() * 1000));
+        } else if (choice.type === "login") {
+            // Later: Show login form, send creds to server
+            startGame("LoginUser");
+        } else if (choice.type === "register") {
+            // Later: Show registration form
+            startGame("NewUser");
+        }
+
+        // Remove login scene
+        app.stage.removeChild(loginScene);
+    }
+
     resizeGame();
+    gameWorld.addChild(border);
     app.stage.addChild(gameWorld);
 
     // Scaling
@@ -64,15 +83,21 @@ import Ship from "./ship.js";
     });
 
     network.onPlayerMoved(({ id, pos }) => {
-        // Update the other player's ship
         if (id !== network.socket.id) {
-            // Determine which ship is the other player
             const otherShip = input.playerIndex === 0 ? shipTwo : shipOne;
             otherShip.sprite.x = pos.x;
             otherShip.sprite.y = pos.y;
             otherShip.sprite.rotation = pos.rotation;
         }
     });
+
+    network.onBulletFired((data) => {
+        const ship = (data.owner === network.socket.id) ? (input.playerIndex === 0 ? shipOne : shipTwo) : (input.playerIndex === 0 ? shipTwo : shipOne);
+
+        const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld);
+        ship.bullets.push(bullet);
+    });
+
     
     ticker.add(() => {
         accumulator += ticker.deltaMS;
@@ -80,6 +105,7 @@ import Ship from "./ship.js";
         while (accumulator >= tickInterval) {
             input.update();
             shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
+            shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
 
             accumulator -= tickInterval;
         }

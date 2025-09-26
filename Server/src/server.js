@@ -59,6 +59,29 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("roomUpdate", rooms[roomId].players);
   });
 
+  socket.on("fireBullet", (bullet) => {
+    const roomId = socketRooms[socket.id];
+    if (!roomId) return;
+
+    const room = rooms[roomId];
+    if (!room.state) room.state = { p1: null, p2: null, bullets: [] };
+
+    room.state.bullets.push({
+        x: bullet.x,
+        y: bullet.y,
+        rotation: bullet.rotation,
+        owner: socket.id
+      });
+
+    io.to(roomId).emit("bulletFired", {
+        x: bullet.x,
+        y: bullet.y,
+        rotation: bullet.rotation,
+        owner: socket.id
+      });
+  });
+
+
   socket.on("disconnect", () => {
     const roomId = socketRooms[socket.id];
     if (!roomId) return;

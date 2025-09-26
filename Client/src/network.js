@@ -44,4 +44,13 @@ export default class Network {
     onRoomFull(callback) {
         this.socket.on("roomFull", callback);
     }
+
+    sendBullet(bullet) {
+        this.socket.emit("fireBullet", bullet);
+    }
+
+    onBulletFired(callback) {
+        this.socket.on("bulletFired", callback);
+    }
+
 }

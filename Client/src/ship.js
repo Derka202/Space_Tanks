@@ -57,6 +57,8 @@ export default class Ship {
         );
         this.bullets.push(bullet);
         container.addChild(bullet);
+
+        return bullet;
     }
 
     updateBullets(container, bounds) {
@@ -76,5 +78,11 @@ export default class Ship {
 
     getPosition() {
     return { x: this.sprite.x, y: this.sprite.y, rotation: this.sprite.rotation };
+    }
+
+    createBullet(x, y, rotation, container) {
+        const bullet = createBullet(x, y, rotation);
+        container.addChild(bullet);
+        return bullet;
     }
 }
