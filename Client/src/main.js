@@ -2,6 +2,8 @@ import { Application, Ticker, Container, Graphics, Assets } from 'pixi.js';
 import InputHandler from './input.js';
 import Network from "./network.js";
 import Ship from "./ship.js";
+import { AsteroidField } from "./asteroidField.js";
+
 
 
 (async () => {
@@ -14,6 +16,7 @@ import Ship from "./ship.js";
     const app = new Application();
     const ticker = new Ticker();
     const gameWorld = new Container();
+    let asteroidField;
     const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000', 0).stroke(2, '#ff0000');
     const network = new Network("http://localhost:3000");
 
@@ -75,12 +78,17 @@ import Ship from "./ship.js";
 
     network.autoJoin();
 
-    network.onRoomJoined(({ roomId, playerIndex, state }) => {
+    network.onRoomJoined(async ({ roomId, asteroidSeed, playerIndex, state }) => {
         console.log("Joined room:", roomId, "as player", playerIndex);
         // Optional: assign which ship is controlled by this client
         // If playerIndex === 0, control shipOne; else control shipTwo
         input.setPlayerIndex(playerIndex);
+
+        // spawn asteroids based on room seed
+        asteroidField = new AsteroidField(asteroidSeed, 5, { x: baseWidth, y: baseHeight });
+        await asteroidField.init(gameWorld);
     });
+
 
     network.onPlayerMoved(({ id, pos }) => {
         if (id !== network.socket.id) {
@@ -106,6 +114,7 @@ import Ship from "./ship.js";
             input.update();
             shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
+            asteroidField.updateAll(ticker.deltaMS);
 
             accumulator -= tickInterval;
         }
