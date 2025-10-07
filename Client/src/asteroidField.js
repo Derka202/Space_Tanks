@@ -12,7 +12,7 @@ export class AsteroidField {
     }
 
     async init(gameWorld) {
-        const texture = await Assets.load("assets/asteroid.png");
+        const texture = await Assets.load("../assets/asteroid.png");
 
         for (let i = 0; i < 10; i++) {
             const x = this.rng() * this.bounds.x;
