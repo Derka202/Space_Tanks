@@ -85,7 +85,7 @@ import { AsteroidField } from "./asteroidField.js";
         input.setPlayerIndex(playerIndex);
 
         // spawn asteroids based on room seed
-        asteroidField = new AsteroidField(asteroidSeed, 5, { x: baseWidth, y: baseHeight });
+        asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
         await asteroidField.init(gameWorld);
     });
 
