@@ -12,6 +12,7 @@ export default class InputHandler {
         this.position = {
             x: null, y: null, rotation: null
         };
+        this.canMove = false;
 
         window.addEventListener('keydown', (e) => {
             if (validInput.includes(e.key.toLowerCase())) {
@@ -22,13 +23,16 @@ export default class InputHandler {
         window.addEventListener('keyup', (e) => {
             if (validInput.includes(e.key.toLowerCase())) {
                 this.keys[e.key.toLowerCase()] = false;
-                this.network.sendPosition(this.playerIndex === 0 ? this.shipOne.getPosition() : this.shipTwo.getPosition());
-                console.log(this.position);
+                if (this.canMove) {
+                    this.network.sendPosition(this.playerIndex === 0 ? this.shipOne.getPosition() : this.shipTwo.getPosition());
+                    console.log(this.position);
+                }
             }
         });
     }
 
     update() {
+        if (!this.canMove) return;
         if (this.keysDiv) this.keysDiv.innerHTML = JSON.stringify(this.keys);
         // const scale = this.getScale();      
 

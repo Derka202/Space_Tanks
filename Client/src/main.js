@@ -1,7 +1,8 @@
-import { Application, Ticker, Container, Graphics, Assets } from 'pixi.js';
+import { Application, Ticker, Container, Graphics, Assets, Text } from 'pixi.js';
 import InputHandler from './input.js';
 import Network from "./network.js";
 import Ship from "./ship.js";
+import LoginScene from './login.js';
 
 
 (async () => {
@@ -14,10 +15,13 @@ import Ship from "./ship.js";
     const app = new Application();
     const ticker = new Ticker();
     const gameWorld = new Container();
-    const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000', 0).stroke(2, '#ff0000');
+    const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000ff', 0).stroke(2, '#ff0000');
+    const queueText = new Text({text: "Waiting For Player...", style: {fontSize: 32, fill: "#ffffff", allign: "center"}});
     const network = new Network("http://localhost:3000");
-
     let accumulator = 0;
+    let inputPlayerIndex;
+    let inputHandler = null;
+    let currentTurn = 0;
 
     // Screen configuration
     await app.init({
@@ -26,30 +30,38 @@ import Ship from "./ship.js";
     });
     app.canvas.style.position = 'absolute';
     document.body.appendChild(app.canvas);
+    
+    resizeGame();
+    app.stage.addChild(gameWorld);
+    gameWorld.addChild(border);
 
-    // const loginScene = new LoginScene(handleLoginChoice);
-    // app.stage.addChild(loginScene);
+    const loginScene = new LoginScene(handleLoginChoice);
+    loginScene.x = baseWidth / 2;
+    loginScene.y = baseHeight / 2;
+    loginScene.pivot.set(loginScene.width / 2, loginScene.height / 2);
+    gameWorld.addChild(loginScene);
 
     function handleLoginChoice(choice) {
         console.log("User chose:", choice);
 
         if (choice.type === "guest") {
-            startGame("Guest_" + Math.floor(Math.random() * 1000));
+            // startGame("Guest_" + Math.floor(Math.random() * 1000));
         } else if (choice.type === "login") {
             // Later: Show login form, send creds to server
-            startGame("LoginUser");
+            // startGame("LoginUser");
         } else if (choice.type === "register") {
             // Later: Show registration form
-            startGame("NewUser");
+            // startGame("NewUser");
         }
 
-        // Remove login scene
-        app.stage.removeChild(loginScene);
+        gameWorld.removeChild(loginScene);
+        queueText.anchor.set(0.5);
+        queueText.x = baseWidth / 2;
+        queueText.y = baseHeight / 2;
+        gameWorld.addChild(queueText);
+        network.autoJoin();
     }
 
-    resizeGame();
-    gameWorld.addChild(border);
-    app.stage.addChild(gameWorld);
 
     // Scaling
     gameWorld.currentScale = 1;
@@ -57,58 +69,73 @@ import Ship from "./ship.js";
     function resizeGame() {
         const scaleX = app.screen.width / baseWidth;
         const scaleY = app.screen.height / baseHeight;
-        gameWorld.currentScale = Math.min(scaleX, scaleY);
+        const scale = Math.min(scaleX, scaleY);
 
-        gameWorld.scale.set(gameWorld.currentScale);
-        gameWorld.x = (app.screen.width - baseWidth * gameWorld.currentScale) / 2;
-        gameWorld.y = (app.screen.height - baseHeight * gameWorld.currentScale) / 2;
+        gameWorld.scale.set(scale);
+        gameWorld.x = (app.screen.width - baseWidth * scale) / 2;
+        gameWorld.y = (app.screen.height - baseHeight * scale) / 2;
     }
 
     window.addEventListener('resize', resizeGame);
-    
-    const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin);
-    const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin);
-    gameWorld.addChild(shipOne.sprite);
-    gameWorld.addChild(shipTwo.sprite);
-    const input = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, network);
-    resizeGame();
 
-    network.autoJoin();
+    network.onGameStart(async ({ startingTurn }) => {
+        console.log("Starting game!");
+        currentTurn = startingTurn;
+        gameWorld.removeChild(queueText);
+        await startGame();
+    })
 
     network.onRoomJoined(({ roomId, playerIndex, state }) => {
         console.log("Joined room:", roomId, "as player", playerIndex);
         // Optional: assign which ship is controlled by this client
         // If playerIndex === 0, control shipOne; else control shipTwo
-        input.setPlayerIndex(playerIndex);
+        inputPlayerIndex = playerIndex;
     });
+    
+    async function startGame(loginType) {
+        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin);
+        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin);
+        gameWorld.addChild(shipOne.sprite);
+        gameWorld.addChild(shipTwo.sprite);
+        
+        inputHandler = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, network);
+        inputHandler.setPlayerIndex(inputPlayerIndex);
+        inputHandler.canMove = (inputPlayerIndex === currentTurn);
 
-    network.onPlayerMoved(({ id, pos }) => {
-        if (id !== network.socket.id) {
-            const otherShip = input.playerIndex === 0 ? shipTwo : shipOne;
+        network.onTurnChange(({currentTurn: turnId}) => {
+            currentTurn = turnId;
+            console.log("Current Turn:", currentTurn);
+            inputHandler.canMove = (inputPlayerIndex === currentTurn);
+        });
+
+        network.onPlayerMoved(({ id, pos }) => {
+            if (id === network.socket.id) return;
+            
+            const otherShip = inputPlayerIndex === 0 ? shipTwo : shipOne;
             otherShip.sprite.x = pos.x;
             otherShip.sprite.y = pos.y;
             otherShip.sprite.rotation = pos.rotation;
-        }
-    });
+        });
 
-    network.onBulletFired((data) => {
-        const ship = (data.owner === network.socket.id) ? (input.playerIndex === 0 ? shipOne : shipTwo) : (input.playerIndex === 0 ? shipTwo : shipOne);
+        network.onBulletFired((data) => {
+            const ship = (data.owner === network.socket.id) ? (inputPlayerIndex === 0 ? shipOne : shipTwo) : (inputPlayerIndex === 0 ? shipTwo : shipOne);
 
-        const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld);
-        ship.bullets.push(bullet);
-    });
+            const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld);
+            ship.bullets.push(bullet);
+        });
 
-    
-    ticker.add(() => {
-        accumulator += ticker.deltaMS;
+        
+        ticker.add(() => {
+            accumulator += ticker.deltaMS;
 
-        while (accumulator >= tickInterval) {
-            input.update();
-            shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
-            shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
+            while (accumulator >= tickInterval) {
+                inputHandler.update();
+                shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
+                shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
 
-            accumulator -= tickInterval;
-        }
-    });
-    ticker.start();
+                accumulator -= tickInterval;
+            }
+        });
+        ticker.start();
+    }
 })();

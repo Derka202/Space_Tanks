@@ -13,10 +13,6 @@ export default class Network {
         });
     }
 
-    joinRoom(roomId) {
-        this.socket.emit("joinRoom", roomId);
-    }
-
     autoJoin() {
         this.socket.emit("autoJoin");
     }
@@ -33,18 +29,6 @@ export default class Network {
         this.socket.on("roomJoined", callback);
     }
 
-    onRoomUpdate(callback) {
-        this.socket.on("roomUpdate", callback);
-    }
-
-    onPlayerLeft(callback) {
-        this.socket.on("playerLeft", callback);
-    }
-
-    onRoomFull(callback) {
-        this.socket.on("roomFull", callback);
-    }
-
     sendBullet(bullet) {
         this.socket.emit("fireBullet", bullet);
     }
@@ -53,4 +37,11 @@ export default class Network {
         this.socket.on("bulletFired", callback);
     }
 
+    onGameStart(callback) {
+        this.socket.on('gameStart', callback);
+    }
+
+    onTurnChange(callback) {
+        this.socket.on("turnChange", callback);
+    }
 }
