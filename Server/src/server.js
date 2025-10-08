@@ -36,7 +36,7 @@ io.on("connection", (socket) => {
     room.players.push(socket.id);
     socket.join(roomId);
     socketRooms[socket.id] = roomId;
-    socket.emit("roomJoined", { roomId, playerIndex: rooms[roomId].players.length - 1, state: rooms[roomId].state });
+    socket.emit("roomJoined", { roomId, playerIndex: rooms[roomId].players.length - 1, state: rooms[roomId].state, asteroidSeed: rooms[roomId].asteroidSeed });
 
     if (room.players.length === 2) {
       room.state.turn = 0;
@@ -111,6 +111,7 @@ function findOrCreateRoom() {
         if (rooms[id] && rooms[id].players.length < 2) return id;
     }
     const newId = generateRoomId();
-    rooms[newId] = { players: [], state: { p1: null, p2: null, bullets: [], turn: 0 } };
+    const asteroidSeed = newId + "_asteroidSeed";
+    rooms[newId] = { players: [], state: { p1: null, p2: null, bullets: [], turn: 0 }, asteroidSeed };
     return newId;
 }

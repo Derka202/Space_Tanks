@@ -2,6 +2,8 @@ import { Application, Ticker, Container, Graphics, Assets, Text } from 'pixi.js'
 import InputHandler from './input.js';
 import Network from "./network.js";
 import Ship from "./ship.js";
+import { AsteroidField } from "./asteroidField.js";
+
 import LoginScene from './login.js';
 
 
@@ -15,6 +17,7 @@ import LoginScene from './login.js';
     const app = new Application();
     const ticker = new Ticker();
     const gameWorld = new Container();
+    let asteroidField;
     const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000ff', 0).stroke(2, '#ff0000');
     const queueText = new Text({text: "Waiting For Player...", style: {fontSize: 32, fill: "#ffffff", allign: "center"}});
     const network = new Network("http://localhost:3000");
@@ -84,12 +87,15 @@ import LoginScene from './login.js';
         gameWorld.removeChild(queueText);
         await startGame();
     })
-
-    network.onRoomJoined(({ roomId, playerIndex, state }) => {
+    
+    network.onRoomJoined(async ({ roomId, asteroidSeed, playerIndex, state }) => {
         console.log("Joined room:", roomId, "as player", playerIndex);
         // Optional: assign which ship is controlled by this client
         // If playerIndex === 0, control shipOne; else control shipTwo
         inputPlayerIndex = playerIndex;
+        asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
+        await asteroidField.init(gameWorld);
+        });
     });
     
     async function startGame(loginType) {
@@ -106,7 +112,9 @@ import LoginScene from './login.js';
             currentTurn = turnId;
             console.log("Current Turn:", currentTurn);
             inputHandler.canMove = (inputPlayerIndex === currentTurn);
-        });
+
+        // spawn asteroids based on room seed
+
 
         network.onPlayerMoved(({ id, pos }) => {
             if (id === network.socket.id) return;
@@ -132,6 +140,7 @@ import LoginScene from './login.js';
                 inputHandler.update();
                 shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
                 shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
+            asteroidField.updateAll(ticker.deltaMS);
 
                 accumulator -= tickInterval;
             }
