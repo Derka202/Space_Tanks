@@ -116,6 +116,11 @@ import { AsteroidField } from "./asteroidField.js";
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
             asteroidField.updateAll(ticker.deltaMS);
 
+            // asteroidField.checkCollisions(
+            //     [shipOne, shipTwo],
+            //     [...shipOne.bullets, ...shipTwo.bullets] // ...spread operator flattens arrays
+            // );
+
             accumulator -= tickInterval;
         }
     });
