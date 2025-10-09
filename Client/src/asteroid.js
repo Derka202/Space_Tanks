@@ -32,4 +32,6 @@ export class Asteroid {
         this.sprite.x = this.x;
         this.sprite.y = this.y;
     }
+
+    //add handleHit method
 }

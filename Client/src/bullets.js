@@ -11,4 +11,7 @@ export function createBullet(x, y, rotation) {
     bullet.speed = 6;         // pixels per tick
 
     return bullet;
+
+    //Add radius property for collision detection
+    //add handleHit method to remove bullet on impact
 }
