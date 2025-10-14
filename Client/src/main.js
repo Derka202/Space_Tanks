@@ -3,6 +3,7 @@ import InputHandler from './input.js';
 import Network from "./network.js";
 import Ship from "./ship.js";
 import { AsteroidField } from "./asteroidField.js";
+import LoginScene from './login.js';
 
 
 
@@ -92,11 +93,12 @@ import { AsteroidField } from "./asteroidField.js";
         // Optional: assign which ship is controlled by this client
         // If playerIndex === 0, control shipOne; else control shipTwo
         inputPlayerIndex = playerIndex;
-        input.setPlayerIndex(playerIndex);
 
         // spawn asteroids based on room seed
         asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
         await asteroidField.init(gameWorld);
+
+        ticker.start();
     });
     
     async function startGame(loginType) {
@@ -136,7 +138,7 @@ import { AsteroidField } from "./asteroidField.js";
             accumulator += ticker.deltaMS;
 
         while (accumulator >= tickInterval) {
-            input.update();
+            inputHandler.update();
             shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
             asteroidField.updateAll(ticker.deltaMS);
@@ -149,6 +151,5 @@ import { AsteroidField } from "./asteroidField.js";
                 accumulator -= tickInterval;
             }
         });
-        ticker.start();
     }
 })();
