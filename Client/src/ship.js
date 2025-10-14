@@ -40,7 +40,6 @@ export default class Ship {
             }
     }
 
-    // Apply movement if no collision
     this.sprite.x = clampedX;
     this.sprite.y = clampedY;
     }
