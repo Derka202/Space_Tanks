@@ -1,7 +1,7 @@
 import { Sprite, Assets } from "pixi.js";
 import { createBullet } from "./bullets.js";
 
-export default class Ship {
+export class Ship {
     constructor(texture, x, y, rotation = 0, scale = 2, bounds = { width: 800, height: 600 }, margin = 5) {
         this.sprite = new Sprite(texture);
         this.sprite.pivot.set(texture.width / 2, texture.height / 2);
@@ -84,4 +84,13 @@ export default class Ship {
         container.addChild(bullet);
         return bullet;
     }
+}
+
+export function collision(a, b) {
+    const dx = (a.sprite ? a.sprite.x : a.x) - (b.sprite ? b.sprite.x : b.x);
+    const dy = (a.sprite ? a.sprite.y : a.y) - (b.sprite ? b.sprite.y : b.y);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const radiusA = (a.radius || a.sprite?.width / 2 || 0) * 0.62;
+    const radiusB = (b.radius || b.sprite?.width / 2 || 0) * 0.62;
+    return distance < (radiusA + radiusB);
 }

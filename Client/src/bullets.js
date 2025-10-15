@@ -8,10 +8,17 @@ export function createBullet(x, y, rotation) {
     bullet.x = x;
     bullet.y = y;
     bullet.rotation = rotation;
-    bullet.speed = 6;         // pixels per tick
+    bullet.speed = 6; // pixels per tick
+    bullet.alive = true;
+
+    bullet.destroyBullet = (container) => {
+        if (container && container.children.includes(bullet)) {
+            container.removeChild(bullet);
+        }
+        bullet.alive = false;
+    }
 
     return bullet;
 
-    //Add radius property for collision detection
     //add handleHit method to remove bullet on impact
 }

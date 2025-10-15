@@ -1,7 +1,7 @@
 import { Application, Ticker, Container, Graphics, Assets, Text } from 'pixi.js';
 import InputHandler from './input.js';
 import Network from "./network.js";
-import Ship from "./ship.js";
+import { Ship, collision } from "./ship.js";
 import { AsteroidField } from "./asteroidField.js";
 import LoginScene from './login.js';
 
@@ -43,6 +43,8 @@ import LoginScene from './login.js';
     loginScene.y = baseHeight / 2;
     loginScene.pivot.set(loginScene.width / 2, loginScene.height / 2);
     gameWorld.addChild(loginScene);
+    // Scaling
+    gameWorld.currentScale = 1;
 
     function handleLoginChoice(choice) {
         console.log("User chose:", choice);
@@ -65,10 +67,6 @@ import LoginScene from './login.js';
         network.autoJoin();
     }
 
-
-    // Scaling
-    gameWorld.currentScale = 1;
-
     function resizeGame() {
         const scaleX = app.screen.width / baseWidth;
         const scaleY = app.screen.height / baseHeight;
@@ -77,6 +75,17 @@ import LoginScene from './login.js';
         gameWorld.scale.set(scale);
         gameWorld.x = (app.screen.width - baseWidth * scale) / 2;
         gameWorld.y = (app.screen.height - baseHeight * scale) / 2;
+    }
+
+    function checkBulletCollisions(attacker, target, container) {
+        attacker.bullets.forEach((bullet, i) => {
+            if(!bullet.alive) return;
+            if (collision(target, bullet)) {
+                console.log("HIT");
+                bullet.destroyBullet(container);
+                attacker.bullets.splice(i, 1);
+            }
+        });
     }
 
     window.addEventListener('resize', resizeGame);
@@ -142,6 +151,9 @@ import LoginScene from './login.js';
             shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
             asteroidField.updateAll(ticker.deltaMS);
+
+            checkBulletCollisions(shipOne, shipTwo, gameWorld);
+            checkBulletCollisions(shipTwo, shipOne, gameWorld);
 
             // asteroidField.checkCollisions(
             //     [shipOne, shipTwo],
