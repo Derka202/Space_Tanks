@@ -37,11 +37,26 @@ export default class Network {
         this.socket.on("bulletFired", callback);
     }
 
+    sendBulletHit() {
+        this.socket.emit("bulletHit");
+    }
+
+    onScoreUpdated(callback) {
+        this.socket.on("scoreUpdated", callback);
+    }
+
     onGameStart(callback) {
         this.socket.on('gameStart', callback);
     }
 
     onTurnChange(callback) {
         this.socket.on("turnChange", callback);
+    }
+
+    sendBulletEnded(roomId) {
+        this.socket.emit("bulletEnded", {roomId});
+    }
+    onGameOver(callback) {
+        this.socket.on("gameOver", callback);
     }
 }

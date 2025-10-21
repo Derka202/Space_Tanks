@@ -46,6 +46,8 @@ export default class InputHandler {
         if (this.keys["e"]) myShip.rotate(1);
         if (this.keys["q"]) myShip.rotate(-1);
         if (this.keys[" "]) {
+            this.canMove = false;
+            console.log("BULLET FIRED");
             const bullet = myShip.fire(this.shipOne.sprite.parent);
 
             this.network.sendBullet({

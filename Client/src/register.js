@@ -1,13 +1,14 @@
 import { Button, Input } from "@pixi/ui";
 import { Container, Graphics, Text } from "pixi.js";
 
-export default class LoginScene {
+export default class RegisterScene {
     constructor(onSubmit, onBack, baseWidth, baseHeight) {
         this.container = new Container();
         const column = new Container();
 
-        const title = new Text({text: "Login", style: {fontSize: 42, fill: "#FFFFFF", align: "center"}});
+        const title = new Text({text: "Create Account", style: {fontSize: 42, fill: "#ffffff", align: "center"}});
         title.anchor.set(0.5);
+        title.x = 0;
         title.y = -200;
         column.addChild(title);
 
@@ -31,10 +32,10 @@ export default class LoginScene {
         passwordInput.y = -30;
         column.addChild(passwordInput);
 
-        this.messageText = new Text({text: "", style: {fontSize: 18}});
-        this.messageText.x = -100;
-        this.messageText.y = -130;
-        column.addChild(this.messageText);
+        this.errorText = new Text({text: "", style: {fontSize: 18}});
+        this.errorText.x = -100;
+        this.errorText.y = -130;
+        column.addChild(this.errorText);
 
         const submitButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
         const submitButton = new Button(submitButtonBg);
@@ -52,7 +53,7 @@ export default class LoginScene {
                 passwordInput.placeholder.style.fill = "#AA0000";
             }
             if (username && password) {
-                onSubmit({username, password}, this.messageText);
+                onSubmit({username, password}, this.errorText);
             }
         });
         const submitButtonText = new Text({text: "Register", style: {fill: "#ffffff", fontSize: 20}});

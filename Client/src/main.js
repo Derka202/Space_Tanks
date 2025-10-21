@@ -1,9 +1,12 @@
 import { Application, Ticker, Container, Graphics, Assets, Text } from 'pixi.js';
-import InputHandler from './input.js';
-import Network from "./network.js";
-import { Ship, collision } from "./ship.js";
 import { AsteroidField } from "./asteroidField.js";
+import { Ship, collision } from "./ship.js";
+import RegisterScene from './register.js';
+import WelcomeScene from './welcome.js';
+import InputHandler from './input.js';
+import MainMenuScene from './menu.js';
 import LoginScene from './login.js';
+import Network from "./network.js";
 
 
 
@@ -13,7 +16,6 @@ import LoginScene from './login.js';
     const baseWidth = 800;
     const baseHeight = 600;
     const margin = 40;
-    
     const app = new Application();
     const ticker = new Ticker();
     const gameWorld = new Container();
@@ -25,6 +27,7 @@ import LoginScene from './login.js';
     let inputPlayerIndex;
     let inputHandler = null;
     let currentTurn = 0;
+    let roomId;
 
     // Screen configuration
     await app.init({
@@ -38,28 +41,28 @@ import LoginScene from './login.js';
     app.stage.addChild(gameWorld);
     gameWorld.addChild(border);
 
-    const loginScene = new LoginScene(handleLoginChoice);
-    loginScene.x = baseWidth / 2;
-    loginScene.y = baseHeight / 2;
-    loginScene.pivot.set(loginScene.width / 2, loginScene.height / 2);
-    gameWorld.addChild(loginScene);
+    const welcomeScene = new WelcomeScene(handleLoginChoice, baseWidth, baseHeight);
+    gameWorld.addChild(welcomeScene.view);
     // Scaling
     gameWorld.currentScale = 1;
 
     function handleLoginChoice(choice) {
-        console.log("User chose:", choice);
+        gameWorld.removeChild(welcomeScene.view);
 
         if (choice.type === "guest") {
-            // startGame("Guest_" + Math.floor(Math.random() * 1000));
+            mainMenu(-1, "Guest");
+            return;
         } else if (choice.type === "login") {
-            // Later: Show login form, send creds to server
-            // startGame("LoginUser");
+            const loginScene = new LoginScene(submitLogin, backToWelcome, baseWidth, baseHeight);
+            gameWorld.addChild(loginScene.view);
+            return;
         } else if (choice.type === "register") {
-            // Later: Show registration form
-            // startGame("NewUser");
+            const registerScene = new RegisterScene(submitRegistration, backToWelcome, baseWidth, baseHeight);
+            gameWorld.addChild(registerScene.view);
+            return;
         }
 
-        gameWorld.removeChild(loginScene);
+        // Command that starts the game
         queueText.anchor.set(0.5);
         queueText.x = baseWidth / 2;
         queueText.y = baseHeight / 2;
@@ -76,33 +79,85 @@ import LoginScene from './login.js';
         gameWorld.x = (app.screen.width - baseWidth * scale) / 2;
         gameWorld.y = (app.screen.height - baseHeight * scale) / 2;
     }
+    
+    async function submitRegistration(info, res) {
+        if (info.password.length  < 5) {
+            res.style.fill = "#FF0000";
+            res.text = "Error: Password Must Be At Least 5 Characters";
+            return;
+        }
 
-    function checkBulletCollisions(attacker, target, container) {
-        attacker.bullets.forEach((bullet, i) => {
-            if(!bullet.alive) return;
-            if (collision(target, bullet)) {
-                console.log("HIT");
-                bullet.destroyBullet(container);
-                attacker.bullets.splice(i, 1);
-            }
+        const response = await fetch("http://localhost:3000/register", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({username: info.username, password: info.password})
         });
+        if(!response.ok) {
+            res.style.fill = "#FF0000";
+            res.text = "Error: User Already Exists";
+            return;
+        }
+
+        res.text = "Successful Registration!";
+        res.style.fill = "#00FF00";
+    }
+    
+    async function submitLogin(info, res) {
+        const response = await fetch("http://localhost:3000/login", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({username: info.username, password: info.password})
+        });
+        
+        const data = await response.json();
+        if(!data.success) {
+            res.text = "Error: Incorrect Login";
+            res.style.fill = "#FF0000";
+            return;
+        } else {
+            console.log("Login Success");
+            //1111 will be the userId once implemented
+            mainMenu(1111, info.username);
+        }
     }
 
+    function clearScreen() {
+        for (let child of gameWorld.children.slice()) {
+            if (child !== border) gameWorld.removeChild(child);
+        }
+    }
+    
+    function backToWelcome() {
+        clearScreen()
+        gameWorld.addChild(welcomeScene.view);
+    }
+    
+    function mainMenu(userId, username) {
+        clearScreen();
+        const mainMenu = new MainMenuScene(playGame, console.log("w"), console.log("w"), console.log("w"), username, baseWidth, baseHeight);
+        gameWorld.addChild(mainMenu.view);
+    }
+    
+    function playGame(userId) {
+        clearScreen();
+
+        queueText.anchor.set(0.5);
+        queueText.x = baseWidth / 2;
+        queueText.y = baseHeight / 2;
+        gameWorld.addChild(queueText);
+        network.autoJoin();
+    }
+    
     window.addEventListener('resize', resizeGame);
 
-    network.onGameStart(async ({ startingTurn }) => {
-        console.log("Starting game!");
-        currentTurn = startingTurn;
-        gameWorld.removeChild(queueText);
-        await startGame();
-    })
-
-    network.onRoomJoined(async ({ roomId, asteroidSeed, playerIndex, state }) => {
+    
+    network.onRoomJoined(async ({ roomId: id, asteroidSeed, playerIndex, state }) => {
+        roomId = id;
         console.log("Joined room:", roomId, "as player", playerIndex);
         // Optional: assign which ship is controlled by this client
         // If playerIndex === 0, control shipOne; else control shipTwo
         inputPlayerIndex = playerIndex;
-
+        
         // spawn asteroids based on room seed
         asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
         await asteroidField.init(gameWorld);
@@ -110,20 +165,65 @@ import LoginScene from './login.js';
         ticker.start();
     });
     
+    network.onGameStart(async ({ startingTurn }) => {
+        console.log("Starting game!");
+        currentTurn = startingTurn;
+        gameWorld.removeChild(queueText);
+        await startGame();
+
+    })
+
     async function startGame(loginType) {
-        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin);
-        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin);
+        let turnCount = 1;
+        const turnText = new Text({text: "Turn: 1", style: {fontSize: 24, fill: "#ffffff"}});
+        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0);
+        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1);
+        const shipOneScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
+        const shipTwoScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
+        shipOneScoreText.x = 10;
+        shipOneScoreText.y = 10;
+        shipTwoScoreText.x = baseWidth - 100;
+        shipTwoScoreText.y = 10;
+        turnText.x = baseWidth / 2;
+        turnText.y = 10
         gameWorld.addChild(shipOne.sprite);
         gameWorld.addChild(shipTwo.sprite);
+        gameWorld.addChild(shipOneScoreText);
+        gameWorld.addChild(shipTwoScoreText);
+        gameWorld.addChild(turnText);
         
         inputHandler = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, network);
         inputHandler.setPlayerIndex(inputPlayerIndex);
         inputHandler.canMove = (inputPlayerIndex === currentTurn);
 
-        network.onTurnChange(({currentTurn: turnId}) => {
+        
+        function checkBulletCollisions(attacker, target, container) {
+            for (let i = attacker.bullets.length - 1; i >= 0 ; i--) {
+                const bullet = attacker.bullets[i];
+                if (!bullet.alive) continue;
+                if (collision(target, bullet)) {
+                    bullet.alive = false;
+                    bullet.destroyBullet(container);
+                    attacker.bullets.splice(i, 1);
+
+                    if (attacker === (inputPlayerIndex === 0 ? shipOne : shipTwo)) {
+                        network.sendBulletHit();
+                        network.sendBulletEnded(roomId);
+                    }
+                }
+            }
+        }
+
+        network.onTurnChange(({currentTurn: turnId, turnCount: turn}) => {
             currentTurn = turnId;
-            console.log("Current Turn:", currentTurn);
             inputHandler.canMove = (inputPlayerIndex === currentTurn);
+            turnCount = turn;
+            turnText.text = `Turn: ${turnCount}`;
+        });
+
+        network.onScoreUpdated((scores) => {
+            shipOneScoreText.text = `Score: ${scores.shipOne}`;
+            shipTwoScoreText.text = `Score: ${scores.shipTwo}`;
         });
 
         network.onPlayerMoved(({ id, pos }) => {
@@ -136,10 +236,38 @@ import LoginScene from './login.js';
         });
 
         network.onBulletFired((data) => {
-            const ship = (data.owner === network.socket.id) ? (inputPlayerIndex === 0 ? shipOne : shipTwo) : (inputPlayerIndex === 0 ? shipTwo : shipOne);
+            if (data.owner === network.socket.id) return;
 
-            const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld);
+            const ship = (inputPlayerIndex === 0) ? shipTwo : shipOne;
+            const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld, inputPlayerIndex);
             ship.bullets.push(bullet);
+        });
+
+        network.onGameOver(({winner, scores}) => {
+            ticker.stop()
+            inputHandler.canMove = false;
+
+            const overlay = new Graphics().rect(0, 0, baseWidth, baseHeight).fill({color: "#000000", alpha: 0.6});
+            gameWorld.addChild(overlay);
+
+            const gameOverText = new Text({text: "GAME OVER", style: {fontSize: 64, fill: "#ff0000", fontWeight: "bold", align: "center"}});
+            gameOverText.anchor.set(0.5);
+            gameOverText.x = baseWidth / 2
+            gameOverText.y = baseHeight / 2 - 40;
+            gameWorld.addChild(gameOverText);
+
+            const scoreText = new Text({text: `Final Scores:\nShip One: ${scores.shipOne}\nShip Two: ${scores.shipTwo}`,
+                style: {fontSize: 28, fill: "#ffffff", align: "center"}});
+            scoreText.anchor.set(0.5);
+            scoreText.x = baseWidth / 2;
+            scoreText.y = baseHeight / 2 + 50;
+            gameWorld.addChild(scoreText);
+
+            const winnerText = new Text({text: `Winner: ${winner}`, style: {fontSize: 32, fill: "#ffff00"}});
+            winnerText.anchor.set(0.5);
+            winnerText.x = baseWidth / 2;
+            winnerText.y = baseHeight / 2 + 130;
+            gameWorld.addChild(winnerText);
         });
 
         
@@ -148,8 +276,8 @@ import LoginScene from './login.js';
 
         while (accumulator >= tickInterval) {
             inputHandler.update();
-            shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
-            shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight});
+            shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
+            shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
             asteroidField.updateAll(ticker.deltaMS);
 
             checkBulletCollisions(shipOne, shipTwo, gameWorld);

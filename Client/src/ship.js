@@ -1,8 +1,9 @@
 import { Sprite, Assets } from "pixi.js";
 import { createBullet } from "./bullets.js";
+import Network from "./network.js";
 
 export class Ship {
-    constructor(texture, x, y, rotation = 0, scale = 2, bounds = { width: 800, height: 600 }, margin = 5) {
+    constructor(texture, x, y, rotation = 0, scale = 2, bounds = { width: 800, height: 600 }, margin = 5, playerIndex) {
         this.sprite = new Sprite(texture);
         this.sprite.pivot.set(texture.width / 2, texture.height / 2);
         this.sprite.x = x;
@@ -11,6 +12,7 @@ export class Ship {
         this.sprite.scale.set(scale);
         this.bounds = bounds;
         this.margin = margin;
+        this.playerIndex = playerIndex
 
         this.speed = 2;
         this.rotationSpeed = 0.05;
@@ -60,7 +62,7 @@ export class Ship {
         return bullet;
     }
 
-    updateBullets(container, bounds) {
+    updateBullets(container, bounds, network, roomId, inputPlayerIndex) {
         this.bullets.forEach((bullet, i) => {
             bullet.x += Math.cos(bullet.rotation - (Math.PI / 2)) * bullet.speed;
             bullet.y += Math.sin(bullet.rotation - (Math.PI / 2)) * bullet.speed;
@@ -71,6 +73,9 @@ export class Ship {
             ) {
                 container.removeChild(bullet);
                 this.bullets.splice(i, 1);
+                if (bullet.owner === inputPlayerIndex) {
+                    network.sendBulletEnded(roomId);
+                }
             }
         });
     }
@@ -79,8 +84,8 @@ export class Ship {
     return { x: this.sprite.x, y: this.sprite.y, rotation: this.sprite.rotation };
     }
 
-    createBullet(x, y, rotation, container) {
-        const bullet = createBullet(x, y, rotation);
+    createBullet(x, y, rotation, container, inputPlayerIndex) {
+        const bullet = createBullet(x, y, rotation, inputPlayerIndex);
         container.addChild(bullet);
         return bullet;
     }

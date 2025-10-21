@@ -1,5 +1,5 @@
 import seedrandom from "seedrandom";
-import { Asteroid } from "./Asteroid.js";
+import { Asteroid } from "./asteroid.js";
 import { Assets, Sprite } from "pixi.js";
 
 export class AsteroidField {

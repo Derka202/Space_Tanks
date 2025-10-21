@@ -14,7 +14,7 @@ const pool = mysql2.createPool({
 
 
 ///Create user
-async function createUser(username, password) {
+export async function createUser(username, password) {
     try {
         const [r1] = await pool.execute("SELECT user_id FROM users WHERE username = ?", [username]);
         if (r1.length > 0) {
@@ -31,7 +31,7 @@ async function createUser(username, password) {
 }
 
 ///Verify user login
-async function isValidUser(username, password) {
+export async function isValidUser(username, password) {
     const [result] = await pool.execute("SELECT user_id FROM users WHERE username = ? AND password = ?", [username, password]);
     return result.length > 0 ? result[0].user_id : null;
 }
