@@ -171,7 +171,7 @@ import { Button } from '@pixi/ui';
         asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
         await asteroidField.init(gameWorld);
 
-        ticker.start();
+        //ticker.start();
     });
     
     network.onGameStart(async ({ startingTurn }) => {
@@ -294,9 +294,10 @@ import { Button } from '@pixi/ui';
             gameWorld.addChild(menuButton.view);
         });
 
-        
-        ticker.add(() => {
-            accumulator += ticker.deltaMS;
+    ticker.start();
+
+    ticker.add(() => {
+        accumulator += ticker.deltaMS;
 
         while (accumulator >= tickInterval) {
             inputHandler.update();
@@ -304,16 +305,45 @@ import { Button } from '@pixi/ui';
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
             asteroidField.updateAll(ticker.deltaMS);
 
+            // Ship vs Bullet collisions
             checkBulletCollisions(shipOne, shipTwo, gameWorld);
             checkBulletCollisions(shipTwo, shipOne, gameWorld);
 
-            // asteroidField.checkCollisions(
-            //     [shipOne, shipTwo],
-            //     [...shipOne.bullets, ...shipTwo.bullets] // ...spread operator flattens arrays
-            // );
+            // Bullet vs Asteroid collisions
+            const allBullets = [...shipOne.bullets, ...shipTwo.bullets];
+            asteroidField.checkBulletCollisions(allBullets, (bullet, asteroid, asteroidIndex) => {
+                console.log("Bullet hit asteroid!");
+                
+                // Destroy bullet
+                bullet.destroyBullet(gameWorld);
+                const ownerShip = bullet.owner === 0 ? shipOne : shipTwo;
+                const bulletIdx = ownerShip.bullets.indexOf(bullet);
+                if (bulletIdx > -1) {
+                    ownerShip.bullets.splice(bulletIdx, 1);
+                }
+                
+                // Delete the asteroid
+                asteroidField.removeAsteroid(asteroidIndex, gameWorld);
+                
+                // Notify server if this player's bullet?
+                // if (bullet.owner === inputPlayerIndex) {
+                //     // network.sendAsteroidHit(asteroidIndex);
+                // }
+            });
 
-                accumulator -= tickInterval;
-            }
-        });
+            // Ship vs Asteroid collisions
+            asteroidField.checkShipCollisions([shipOne, shipTwo], (ship, asteroid, shipIndex, asteroidIndex) => {
+                console.log(`Ship ${shipIndex} hit asteroid!`);
+                
+                // Log collision for now; register damage later
+                // if (shipIndex === inputPlayerIndex) {
+                //     // network.sendShipAsteroidCollision(asteroidIndex);
+                // }
+            });
+
+            accumulator -= tickInterval;
+        }
+    });
+    
     }
 })();

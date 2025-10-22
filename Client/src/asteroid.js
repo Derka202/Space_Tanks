@@ -1,3 +1,4 @@
+// asteroid.js
 import { Sprite } from "pixi.js";
 
 export class Asteroid {
@@ -9,6 +10,7 @@ export class Asteroid {
         this.vy = vy;
         this.mass = mass;
         this.radius = radius;
+        this.destroyed = false;
 
         this.sprite = new Sprite(texture);
         this.sprite.anchor.set(0.5);
@@ -28,10 +30,34 @@ export class Asteroid {
         if (this.y < 0) this.y += bounds.y;
         if (this.y > bounds.y) this.y -= bounds.y;
 
-    
         this.sprite.x = this.x;
         this.sprite.y = this.y;
     }
 
-    //add handleHit method
+    checkBulletCollision(bullet) {
+        if (!bullet.alive || this.destroyed) return false;
+        
+        const dx = this.x - bullet.x;
+        const dy = this.y - bullet.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        return distance < (this.radius + 4); // 4 is bullet radius
+    }
+
+    checkShipCollision(ship) {
+        if (this.destroyed) return false;
+        
+        const dx = this.x - ship.sprite.x;
+        const dy = this.y - ship.sprite.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        return distance < (this.radius + 20); // 20 is approximate ship radius
+    }
+
+    handleHit(container) {
+        this.destroyed = true;
+        if (container && container.children.includes(this.sprite)) {
+            container.removeChild(this.sprite);
+        }
+    }
 }
