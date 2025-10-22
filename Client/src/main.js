@@ -7,6 +7,7 @@ import InputHandler from './input.js';
 import MainMenuScene from './menu.js';
 import LoginScene from './login.js';
 import Network from "./network.js";
+import { Button } from '@pixi/ui';
 
 
 
@@ -28,6 +29,8 @@ import Network from "./network.js";
     let inputHandler = null;
     let currentTurn = 0;
     let roomId;
+    let userId;
+    let user;
 
     // Screen configuration
     await app.init({
@@ -50,7 +53,9 @@ import Network from "./network.js";
         gameWorld.removeChild(welcomeScene.view);
 
         if (choice.type === "guest") {
-            mainMenu(-1, "Guest");
+            user = "Guest";
+            userId = -1
+            mainMenu(userId, user);
             return;
         } else if (choice.type === "login") {
             const loginScene = new LoginScene(submitLogin, backToWelcome, baseWidth, baseHeight);
@@ -110,14 +115,18 @@ import Network from "./network.js";
         });
         
         const data = await response.json();
+
+        console.log(data);
         if(!data.success) {
             res.text = "Error: Incorrect Login";
             res.style.fill = "#FF0000";
             return;
         } else {
             console.log("Login Success");
+            userId = data.userId;
+            user = info.username;
             //1111 will be the userId once implemented
-            mainMenu(1111, info.username);
+            mainMenu(userId, info.username);
         }
     }
 
@@ -182,7 +191,7 @@ import Network from "./network.js";
         const shipTwoScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         shipOneScoreText.x = 10;
         shipOneScoreText.y = 10;
-        shipTwoScoreText.x = baseWidth - 100;
+        shipTwoScoreText.x = baseWidth - 110;
         shipTwoScoreText.y = 10;
         turnText.x = baseWidth / 2;
         turnText.y = 10
@@ -268,6 +277,21 @@ import Network from "./network.js";
             winnerText.x = baseWidth / 2;
             winnerText.y = baseHeight / 2 + 130;
             gameWorld.addChild(winnerText);
+
+            const menuButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
+            const menuButton = new Button(menuButtonBg);
+            menuButton.onPress.connect(() => {
+                clearScreen();
+                mainMenu(userId, user);
+            });
+            const menuButtonText = new Text({text: "Main Menu", style: {fill: "#FFFFFF", fontSize: 20}});
+            menuButtonText.anchor.set(0.5);
+            menuButtonText.x = menuButtonBg.width / 2;
+            menuButtonText.y = menuButtonBg.height / 2;
+            menuButton.view.addChild(menuButtonText);
+            menuButton.view.x = 320;
+            menuButton.view.y = 500;
+            gameWorld.addChild(menuButton.view);
         });
 
         
