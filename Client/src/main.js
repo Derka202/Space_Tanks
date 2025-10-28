@@ -160,20 +160,6 @@ import { Button } from '@pixi/ui';
     
     window.addEventListener('resize', resizeGame);
 
-    
-    // network.onRoomJoined(async ({ roomId: id, asteroidSeed, playerIndex, state }) => {
-    //     roomId = id;
-    //     console.log("Joined room:", roomId, "as player", playerIndex);
-    //     // Optional: assign which ship is controlled by this client
-    //     // If playerIndex === 0, control shipOne; else control shipTwo
-    //     inputPlayerIndex = playerIndex;
-        
-    //     // spawn asteroids based on room seed
-    //     asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
-    //     await asteroidField.init(gameWorld);
-
-    //     //ticker.start();
-    // });
 
     network.onRoomJoined(async ({ roomId: id, asteroidSeed, playerIndex, state }) => {
         roomId = id;
@@ -252,7 +238,7 @@ import { Button } from '@pixi/ui';
 
         network.onAsteroidUpdate(({ asteroidState }) => {
             asteroidField.syncFromServer(asteroidState, gameWorld);
-         });
+        });
 
 
         network.onScoreUpdated((scores) => {
