@@ -41,6 +41,18 @@ export default class Network {
         this.socket.emit("bulletHit");
     }
 
+    sendAsteroidHit(roomId, asteroidId) {
+        this.socket.emit('asteroidHit', { roomId, asteroidId });
+    }
+
+    sendAsteroidDamage(roomId, asteroidId) {
+        this.socket.emit('asteroidDamage', { roomId, asteroidId });
+    }
+
+    onAsteroidUpdate(callback) {
+        this.socket.on("asteroidUpdate", callback);
+    }
+
     onScoreUpdated(callback) {
         this.socket.on("scoreUpdated", callback);
     }
