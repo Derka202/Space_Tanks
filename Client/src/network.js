@@ -13,8 +13,8 @@ export default class Network {
         });
     }
 
-    autoJoin() {
-        this.socket.emit("autoJoin");
+    autoJoin(userId) {
+        this.socket.emit("autoJoin", userId);
     }
 
     sendPosition(data, roomId) {
@@ -58,5 +58,13 @@ export default class Network {
     }
     onGameOver(callback) {
         this.socket.on("gameOver", callback);
+    }
+
+    getUserIds() {
+        this.socket.emit("getUserIds");
+    }
+
+    onUserIds(callback) {
+        this.socket.once("userIds", (ids) => callback(ids || []));
     }
 }

@@ -1,13 +1,16 @@
 import { Application, Ticker, Container, Graphics, Assets, Text } from 'pixi.js';
+import InstructionsScene from '../instructions.js';
 import { AsteroidField } from "./asteroidField.js";
 import { Ship, collision } from "./ship.js";
 import RegisterScene from './register.js';
+import GameOverScene from './gameOver.js';
 import WelcomeScene from './welcome.js';
 import InputHandler from './input.js';
 import MainMenuScene from './menu.js';
 import LoginScene from './login.js';
 import Network from "./network.js";
 import { Button } from '@pixi/ui';
+import HighScoresScene from './highScores.js';
 
 
 
@@ -22,8 +25,8 @@ import { Button } from '@pixi/ui';
     const gameWorld = new Container();
     const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000ff', 0).stroke(2, '#ff0000');
     const queueText = new Text({text: "Waiting For Player...", style: {fontSize: 32, fill: "#ffffff", allign: "center"}});
-    let asteroidField;
     const network = new Network("http://localhost:3000");
+    let asteroidField;
     let accumulator = 0;
     let inputPlayerIndex;
     let inputHandler = null;
@@ -54,8 +57,10 @@ import { Button } from '@pixi/ui';
 
         if (choice.type === "guest") {
             user = "Guest";
-            userId = -1
-            mainMenu(userId, user);
+            userId = -1;
+            const res = new Text();
+            submitLogin({username: "guest", password: ""}, res);
+            // mainMenu(userId, user);
             return;
         } else if (choice.type === "login") {
             const loginScene = new LoginScene(submitLogin, backToWelcome, baseWidth, baseHeight);
@@ -91,6 +96,16 @@ import { Button } from '@pixi/ui';
             res.text = "Error: Password Must Be At Least 5 Characters";
             return;
         }
+        if (info.username.includes(" ")) {
+            res.style.fill = "#FF0000";
+            res.text = "Error: Username cannot contain spaces";
+            return;
+        }
+        if (info.password.includes(" ")) {
+            res.style.fill = "#FF0000";
+            res.text = "Error: Password cannot contain spaces";
+            return;
+        }
 
         const response = await fetch("http://localhost:3000/register", {
             method: "POST",
@@ -116,16 +131,13 @@ import { Button } from '@pixi/ui';
         
         const data = await response.json();
 
-        console.log(data);
         if(!data.success) {
             res.text = "Error: Incorrect Login";
             res.style.fill = "#FF0000";
             return;
         } else {
-            console.log("Login Success");
             userId = data.userId;
             user = info.username;
-            //1111 will be the userId once implemented
             mainMenu(userId, info.username);
         }
     }
@@ -143,18 +155,37 @@ import { Button } from '@pixi/ui';
     
     function mainMenu(userId, username) {
         clearScreen();
-        const mainMenu = new MainMenuScene(playGame, console.log("w"), console.log("w"), console.log("w"), username, baseWidth, baseHeight);
+        const mainMenu = new MainMenuScene(playGame, console.log("w"), highScores, instructions, username, baseWidth, baseHeight);
         gameWorld.addChild(mainMenu.view);
     }
+
+    function instructions() {
+        clearScreen()
+        const instructions = new InstructionsScene(backToMainMenu, baseWidth, baseHeight);
+        gameWorld.addChild(instructions.view);
+    }
+
+    async function highScores() {
+        clearScreen()
+        const highScores = new HighScoresScene(backToMainMenu, baseWidth, baseHeight);
+        gameWorld.addChild(highScores.view);
+        await highScores.loadScores();
+    }
+
+    function backToMainMenu() {
+        clearScreen();
+        mainMenu(userId, user);
+    }
     
-    function playGame(userId) {
+    function playGame() {
         clearScreen();
 
         queueText.anchor.set(0.5);
         queueText.x = baseWidth / 2;
         queueText.y = baseHeight / 2;
         gameWorld.addChild(queueText);
-        network.autoJoin();
+
+        network.autoJoin(userId);
     }
     
     window.addEventListener('resize', resizeGame);
@@ -166,12 +197,11 @@ import { Button } from '@pixi/ui';
         // Optional: assign which ship is controlled by this client
         // If playerIndex === 0, control shipOne; else control shipTwo
         inputPlayerIndex = playerIndex;
+        console.log("User ID:", userId);
         
         // spawn asteroids based on room seed
         asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
         await asteroidField.init(gameWorld);
-
-        //ticker.start();
     });
     
     network.onGameStart(async ({ startingTurn }) => {
@@ -252,46 +282,12 @@ import { Button } from '@pixi/ui';
             ship.bullets.push(bullet);
         });
 
-        network.onGameOver(({winner, scores}) => {
+        network.onGameOver(async ({winner, scores}) => {
             ticker.stop()
             inputHandler.canMove = false;
 
-            const overlay = new Graphics().rect(0, 0, baseWidth, baseHeight).fill({color: "#000000", alpha: 0.6});
-            gameWorld.addChild(overlay);
-
-            const gameOverText = new Text({text: "GAME OVER", style: {fontSize: 64, fill: "#ff0000", fontWeight: "bold", align: "center"}});
-            gameOverText.anchor.set(0.5);
-            gameOverText.x = baseWidth / 2
-            gameOverText.y = baseHeight / 2 - 40;
-            gameWorld.addChild(gameOverText);
-
-            const scoreText = new Text({text: `Final Scores:\nShip One: ${scores.shipOne}\nShip Two: ${scores.shipTwo}`,
-                style: {fontSize: 28, fill: "#ffffff", align: "center"}});
-            scoreText.anchor.set(0.5);
-            scoreText.x = baseWidth / 2;
-            scoreText.y = baseHeight / 2 + 50;
-            gameWorld.addChild(scoreText);
-
-            const winnerText = new Text({text: `Winner: ${winner}`, style: {fontSize: 32, fill: "#ffff00"}});
-            winnerText.anchor.set(0.5);
-            winnerText.x = baseWidth / 2;
-            winnerText.y = baseHeight / 2 + 130;
-            gameWorld.addChild(winnerText);
-
-            const menuButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
-            const menuButton = new Button(menuButtonBg);
-            menuButton.onPress.connect(() => {
-                clearScreen();
-                mainMenu(userId, user);
-            });
-            const menuButtonText = new Text({text: "Main Menu", style: {fill: "#FFFFFF", fontSize: 20}});
-            menuButtonText.anchor.set(0.5);
-            menuButtonText.x = menuButtonBg.width / 2;
-            menuButtonText.y = menuButtonBg.height / 2;
-            menuButton.view.addChild(menuButtonText);
-            menuButton.view.x = 320;
-            menuButton.view.y = 500;
-            gameWorld.addChild(menuButton.view);
+            const gameOver = new GameOverScene(backToMainMenu, winner, scores, baseWidth, baseHeight);
+            gameWorld.addChild(gameOver.view);
         });
 
     ticker.start();

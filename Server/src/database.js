@@ -47,13 +47,13 @@ async function getUserHighScore(username) {
 }
 
 ///Get top n high scores
-async function getTopHighScores(n) {
+export async function getTopHighScores(n) {
     const [rows] = await pool.execute(`SELECT username, score FROM participants p LEFT JOIN users u ON u.user_id = p.user_id ORDER BY p.score DESC LIMIT ${Number(n)}`);
     return rows;
 }
 
 ///Create game record
-async function createGameRecord(userId1, userId2) {
+export async function createGameRecord(userId1, userId2) {
     try {
         const [result] = await pool.execute("INSERT INTO GAMES () VALUES ()")
         const gameId = result.insertId; 
@@ -72,7 +72,7 @@ async function logActionTime(gameId, userId, currentScore) {
 }
 
 ///Record game stats
-async function recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore) {
+export async function recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore) {
     try {
         const [result1] = await pool.execute("UPDATE participants SET score = ?, last_action_time = NOW(), is_winner = 1 WHERE game_id = ? AND user_id = ?", [winnerScore, gameId, winnerId]);
         const [result2] = await pool.execute("UPDATE participants SET score = ?, last_action_time = NOW(), is_winner = 0 WHERE game_id = ? AND user_id = ?", [loserScore, gameId, loserId]);

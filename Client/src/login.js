@@ -55,7 +55,7 @@ export default class LoginScene {
                 onSubmit({username, password}, this.messageText);
             }
         });
-        const submitButtonText = new Text({text: "Register", style: {fill: "#ffffff", fontSize: 20}});
+        const submitButtonText = new Text({text: "Submit", style: {fill: "#ffffff", fontSize: 20}});
         submitButtonText.anchor.set(0.5);
         submitButtonText.x = submitButtonBg.width / 2;
         submitButtonText.y = submitButtonBg.height / 2;

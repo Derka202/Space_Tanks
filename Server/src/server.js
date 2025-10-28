@@ -1,4 +1,4 @@
-import { createUser, isValidUser } from "./database.js";
+import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats } from "./database.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -71,6 +71,31 @@ const httpServer = createServer(async (req, res) => {
       console.error("Failed to parse request body", err);
     }
   }
+
+  if (req.method === "GET" && req.url === "/highscores") {
+    try {
+      console.log("Received request for high scores");
+      const scores = await getTopHighScores(10);
+      console.log(scores);
+
+      sendJson(res, {success: true, scores});
+    } catch (err) {
+      sendJson(res, {success: false, error: err.message}, 500)
+    }
+  }
+
+  if (req.method === "POST" && req.url === "/creategamerecord") {
+    console.log("Received request to create game record");
+    try {
+      const ids = await getJsonBody(req);
+
+      const gameId = await createGameRecord(ids.userId1, ids.userId2);
+      console.log("Created game record with ID:", gameId);
+      sendJson(res, {success: true, gameId});
+    } catch (err) {
+      sendJson(res, {success: false, error: err.message}, 500);
+    }
+  }
 });
 
 const io = new Server(httpServer, {
@@ -95,10 +120,11 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("playerMoved", { id: socket.id, pos });
   });
 
-  socket.on("autoJoin", () => {
+  socket.on("autoJoin", (userId) => {
     const roomId = findOrCreateRoom();
     const room = rooms[roomId];
     room.players.push(socket.id);
+    room.userIds.push(userId);
     socket.join(roomId);
     socketRooms[socket.id] = roomId;
     socket.emit("roomJoined", { roomId, playerIndex: rooms[roomId].players.length - 1, state: rooms[roomId].state, asteroidSeed: rooms[roomId].asteroidSeed });
@@ -135,7 +161,7 @@ io.on("connection", (socket) => {
 
     });
     
-    socket.on("bulletEnded", ({roomId}) => {
+    socket.on("bulletEnded", async ({roomId}) => {
       const room = rooms[roomId];
       
       room.state.turn = (room.state.turn + 1) % 2;
@@ -144,9 +170,33 @@ io.on("connection", (socket) => {
 
       if (room.state.turnCount == 21) {
         let winningShip = null;
-        if (room.state.scores.shipOne > room.state.scores.shipTwo) winningShip = "Ship One";
-        else if (room.state.scores.shipOne < room.state.scores.shipTwo) winningShip = "Ship Two";
-        else winningShip = "Tie";
+        let winnerId = null;
+        let winnerScore = null;
+        let loserId = null;
+        let loserScore = null;
+        if (room.state.scores.shipOne > room.state.scores.shipTwo) {
+          winningShip = "Ship One";
+          winnerId = room.userIds[0];
+          winnerScore = room.state.scores.shipOne;
+          loserId = room.userIds[1];
+          loserScore = room.state.scores.shipTwo;
+        }
+        else if (room.state.scores.shipOne < room.state.scores.shipTwo) {
+          winningShip = "Ship Two";
+          winnerId = room.userIds[1];
+          winnerScore = room.state.scores.shipTwo;
+          loserId = room.userIds[0];
+          loserScore = room.state.scores.shipOne;
+        }
+        else {
+          winningShip = "Tie";
+        }
+
+        const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
+        console.log("Created game record with ID---:", gameId);
+        const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
+        console.log("Recorded game stats:", gameRecord);
+
         io.to(roomId).emit("gameOver", {winner: winningShip, scores: room.state.scores});
       }
   });
@@ -160,6 +210,13 @@ io.on("connection", (socket) => {
     else if (playerIndex === 1) room.state.scores.shipTwo += 20;
 
     io.to(roomId).emit("scoreUpdated", room.state.scores);
+  });
+
+  socket.on("getUserIds", () => {
+    const roomId = socketRooms[socket.id];
+    const room = rooms[roomId];
+
+    io.to(roomId).emit("userIds", room.userIds);
   });
 
   socket.on("disconnect", () => {
@@ -180,8 +237,17 @@ io.on("connection", (socket) => {
 });
 
 
-httpServer.listen(3000, () => {
+httpServer.listen(3000, async () => {
   console.log("Server running on http://localhost:3000");
+
+  let guestId = await isValidUser("guest", "");
+  if (!guestId) {
+    guestId = await createUser("guest", "");
+    console.log("Created Guest user with ID:", guestId);
+  }
+  else {
+    console.log("Guest user exists with ID:", guestId);
+  }
 });
 
 function generateRoomId(length = 6) {
@@ -199,6 +265,6 @@ function findOrCreateRoom() {
     }
     const newId = generateRoomId();
     const asteroidSeed = newId + "_asteroidSeed";
-    rooms[newId] = { players: [], state: { p1: null, p2: null, bullets: [], turn: 0, turnCount: 1, scores: {shipOne: 0, shipTwo: 0} }, asteroidSeed };
+    rooms[newId] = { players: [], userIds: [], state: { p1: null, p2: null, bullets: [], turn: 0, turnCount: 1, scores: {shipOne: 0, shipTwo: 0} }, asteroidSeed };
     return newId;
 }
