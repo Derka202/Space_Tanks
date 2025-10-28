@@ -34,6 +34,7 @@ import HighScoresScene from './highScores.js';
     let roomId;
     let userId;
     let user;
+    const shipAsteroidHits = new Set();
 
     // Screen configuration
     await app.init({
@@ -190,19 +191,22 @@ import HighScoresScene from './highScores.js';
     
     window.addEventListener('resize', resizeGame);
 
-    
+
     network.onRoomJoined(async ({ roomId: id, asteroidSeed, playerIndex, state }) => {
         roomId = id;
         console.log("Joined room:", roomId, "as player", playerIndex);
-        // Optional: assign which ship is controlled by this client
-        // If playerIndex === 0, control shipOne; else control shipTwo
         inputPlayerIndex = playerIndex;
         console.log("User ID:", userId);
         
-        // spawn asteroids based on room seed
         asteroidField = new AsteroidField(asteroidSeed, { x: baseWidth, y: baseHeight });
         await asteroidField.init(gameWorld);
+
+        // Instead of generating random asteroids here, sync with the server state:
+        if (state?.asteroids) {
+            asteroidField.syncFromServer(state.asteroids, gameWorld);
+        }
     });
+
     
     network.onGameStart(async ({ startingTurn }) => {
         console.log("Starting game!");
@@ -253,12 +257,21 @@ import HighScoresScene from './highScores.js';
             }
         }
 
-        network.onTurnChange(({currentTurn: turnId, turnCount: turn}) => {
+        network.onTurnChange(({currentTurn: turnId, turnCount: turn, asteroidState}) => {
             currentTurn = turnId;
             inputHandler.canMove = (inputPlayerIndex === currentTurn);
             turnCount = turn;
             turnText.text = `Turn: ${turnCount}`;
+        
+            if (asteroidState && asteroidField) {
+                asteroidField.syncFromServer(asteroidState, gameWorld);
+            }
         });
+
+        network.onAsteroidUpdate(({ asteroidState }) => {
+            asteroidField.syncFromServer(asteroidState, gameWorld);
+        });
+
 
         network.onScoreUpdated((scores) => {
             shipOneScoreText.text = `Score: ${scores.shipOne}`;
@@ -299,7 +312,9 @@ import HighScoresScene from './highScores.js';
             inputHandler.update();
             shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
-            asteroidField.updateAll(ticker.deltaMS);
+            //moving the asteroid update to the server
+            //asteroidField.updateAll(ticker.deltaMS);
+            shipAsteroidHits.clear();
 
             // Ship vs Bullet collisions
             checkBulletCollisions(shipOne, shipTwo, gameWorld);
@@ -308,33 +323,33 @@ import HighScoresScene from './highScores.js';
             // Bullet vs Asteroid collisions
             const allBullets = [...shipOne.bullets, ...shipTwo.bullets];
             asteroidField.checkBulletCollisions(allBullets, (bullet, asteroid, asteroidIndex) => {
-                console.log("Bullet hit asteroid!");
-                
-                // Destroy bullet
-                bullet.destroyBullet(gameWorld);
-                const ownerShip = bullet.owner === 0 ? shipOne : shipTwo;
-                const bulletIdx = ownerShip.bullets.indexOf(bullet);
-                if (bulletIdx > -1) {
-                    ownerShip.bullets.splice(bulletIdx, 1);
+                // Only process if this is the local player's bullet
+                if (bullet.owner === inputPlayerIndex) {
+                    console.log("My bullet hit asteroid!");
+                    
+                    // Destroy bullet locally
+                    bullet.destroyBullet(gameWorld);
+                    const ownerShip = bullet.owner === 0 ? shipOne : shipTwo;
+                    const bulletIdx = ownerShip.bullets.indexOf(bullet);
+                    if (bulletIdx > -1) {
+                        ownerShip.bullets.splice(bulletIdx, 1);
+                    }
+                    
+                    // Remove asteroid locally then send to server
+                    asteroidField.removeAsteroid(asteroidIndex, gameWorld);
+                    network.sendAsteroidHit(roomId, asteroid.id);
                 }
-                
-                // Delete the asteroid
-                asteroidField.removeAsteroid(asteroidIndex, gameWorld);
-                
-                // Notify server if this player's bullet?
-                // if (bullet.owner === inputPlayerIndex) {
-                //     // network.sendAsteroidHit(asteroidIndex);
-                // }
             });
 
             // Ship vs Asteroid collisions
             asteroidField.checkShipCollisions([shipOne, shipTwo], (ship, asteroid, shipIndex, asteroidIndex) => {
-                console.log(`Ship ${shipIndex} hit asteroid!`);
+                const hitKey = `${shipIndex}-${asteroid.id}`;
                 
-                // Log collision for now; register damage later
-                // if (shipIndex === inputPlayerIndex) {
-                //     // network.sendShipAsteroidCollision(asteroidIndex);
-                // }
+                if (shipIndex === inputPlayerIndex && !shipAsteroidHits.has(hitKey)) {
+                    console.log(`My ship hit asteroid!`);
+                    shipAsteroidHits.add(hitKey);
+                    network.sendAsteroidDamage(roomId, asteroid.id);
+                }
             });
 
             accumulator -= tickInterval;

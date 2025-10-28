@@ -1,10 +1,86 @@
 import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats } from "./database.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
-
+import seedrandom from "seedrandom";
 
 const rooms = {};
 const socketRooms = {};
+
+// Server-side Asteroid class (deterministic physics)
+class Asteroid {
+    constructor(id, x, y, vx, vy, mass, radius) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.mass = mass;
+        this.radius = radius;
+    }
+
+    update(deltaMS, bounds) {
+        const dt = deltaMS / 1000;
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        // Wrap around edges
+        if (this.x < 0) this.x += bounds.x;
+        if (this.x > bounds.x) this.x -= bounds.x;
+        if (this.y < 0) this.y += bounds.y;
+        if (this.y > bounds.y) this.y -= bounds.y;
+    }
+}
+
+// Server-side AsteroidField
+class AsteroidField {
+    constructor(seed, bounds) {
+        this.seed = seed;
+        this.bounds = bounds;
+        this.asteroids = [];
+        this.rng = seedrandom(seed);
+        this.init();
+    }
+
+    init() {
+        for (let i = 0; i < 10; i++) {
+            const x = this.rng() * this.bounds.x;
+            const y = this.rng() * this.bounds.y;
+            const vx = (this.rng() - 0.5) * 50;
+            const vy = (this.rng() - 0.5) * 50;
+            const mass = 20 + this.rng() * 30;
+            const radius = 20 + this.rng() * 30;
+
+            this.asteroids.push(new Asteroid(i, x, y, vx, vy, mass, radius));
+        }
+    }
+
+    updateAll(deltaMS) {
+        for (const a of this.asteroids) {
+            a.update(deltaMS, this.bounds);
+        }
+    }
+
+    getState() {
+        return this.asteroids.map(a => ({
+            id: a.id,
+            x: a.x,
+            y: a.y,
+            vx: a.vx,
+            vy: a.vy,
+            mass: a.mass,
+            radius: a.radius
+        }));
+    }
+
+    removeAsteroid(asteroidId) {
+        const index = this.asteroids.findIndex(a => a.id === asteroidId);
+        if (index !== -1) {
+            this.asteroids.splice(index, 1);
+            return true;
+        }
+        return false;
+    }
+}
 
 const httpServer = createServer(async (req, res) => {
   function getJsonBody(req) {
@@ -105,7 +181,7 @@ const io = new Server(httpServer, {
 });
 
 io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id, rooms);
+  console.log("A user connected:", socket.id);
 
   socket.on("updatePosition", (pos) => {
     const roomId = socketRooms[socket.id];
@@ -127,11 +203,16 @@ io.on("connection", (socket) => {
     room.userIds.push(userId);
     socket.join(roomId);
     socketRooms[socket.id] = roomId;
-    socket.emit("roomJoined", { roomId, playerIndex: rooms[roomId].players.length - 1, state: rooms[roomId].state, asteroidSeed: rooms[roomId].asteroidSeed });
+    socket.emit("roomJoined", { 
+      roomId, 
+      playerIndex: room.players.length - 1, 
+      state: room.state, 
+      asteroidSeed: room.asteroidSeed 
+    });
 
     if (room.players.length === 2) {
       room.state.turn = 0;
-      io.to(roomId).emit("gameStart", {  startingTurn: room.state.turn });
+      io.to(roomId).emit("gameStart", { startingTurn: room.state.turn });
     }
   });
 
@@ -146,27 +227,36 @@ io.on("connection", (socket) => {
     if (playerIndex !== room.state.turn) return;
 
     room.state.bullets.push({
-        x: bullet.x,
-        y: bullet.y,
-        rotation: bullet.rotation,
-        owner: socket.id
-      });
+      x: bullet.x,
+      y: bullet.y,
+      rotation: bullet.rotation,
+      owner: socket.id
+    });
 
     io.to(roomId).emit("bulletFired", {
-        x: bullet.x,
-        y: bullet.y,
-        rotation: bullet.rotation,
-        owner: socket.id
-      });
-
+      x: bullet.x,
+      y: bullet.y,
+      rotation: bullet.rotation,
+      owner: socket.id,
+      playerIndex: playerIndex
     });
+  });
     
-    socket.on("bulletEnded", async ({roomId}) => {
-      const room = rooms[roomId];
-      
-      room.state.turn = (room.state.turn + 1) % 2;
-      room.state.turnCount++;
-      io.to(roomId).emit("turnChange", {currentTurn: room.state.turn, turnCount: room.state.turnCount});
+  socket.on("bulletEnded", async ({roomId}) => {
+    const room = rooms[roomId];
+    
+    // Update asteroids before turn change
+    room.asteroidField.updateAll(1000); // 1 second of physics per turn
+    
+    room.state.turn = (room.state.turn + 1) % 2;
+    room.state.turnCount++;
+    
+    // Send turn change with asteroid state
+    io.to(roomId).emit("turnChange", {
+      currentTurn: room.state.turn, 
+      turnCount: room.state.turnCount,
+      asteroidState: room.asteroidField.getState()
+    });
 
       if (room.state.turnCount == 21) {
         let winningShip = null;
@@ -199,6 +289,13 @@ io.on("connection", (socket) => {
 
         io.to(roomId).emit("gameOver", {winner: winningShip, scores: room.state.scores});
       }
+    if (room.state.turnCount == 21) {
+      let winningShip = null;
+      if (room.state.scores.shipOne > room.state.scores.shipTwo) winningShip = "Ship One";
+      else if (room.state.scores.shipOne < room.state.scores.shipTwo) winningShip = "Ship Two";
+      else winningShip = "Tie";
+      io.to(roomId).emit("gameOver", {winner: winningShip, scores: room.state.scores});
+    }
   });
 
   socket.on("bulletHit", () => {
@@ -212,11 +309,57 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("scoreUpdated", room.state.scores);
   });
 
-  socket.on("getUserIds", () => {
-    const roomId = socketRooms[socket.id];
+  // Handle bullet hitting asteroid
+  socket.on("asteroidHit", ({ roomId, asteroidId }) => {
     const room = rooms[roomId];
+    if (!room) return;
+    
+    // Remove asteroid from server state
+    const removed = room.asteroidField.removeAsteroid(asteroidId);
+    if (removed) {
+      const playerIndex = room.players.indexOf(socket.id);
+      
+      // Award points for destroying asteroid
+      if (playerIndex === 0) {
+        room.state.scores.shipOne += 10;
+      } else if (playerIndex === 1) {
+        room.state.scores.shipTwo += 10;
+      }
+      
+      // Broadcast updated scores
+      io.to(roomId).emit("scoreUpdated", room.state.scores);
+    }
+  });
 
-    io.to(roomId).emit("userIds", room.userIds);
+  // Handle ship hitting asteroid (damage)
+  socket.on("asteroidDamage", ({ roomId, asteroidId }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    
+    const playerIndex = room.players.indexOf(socket.id);
+    
+    // Create unique key to prevent duplicate damage in same turn
+    const damageKey = `${playerIndex}-${asteroidId}-${room.state.turnCount}`;
+    
+    // Initialize damage tracking if not exists
+    if (!room.asteroidDamageTracking) {
+      room.asteroidDamageTracking = new Set();
+    }
+    
+    // Only apply damage if not already processed this turn
+    if (!room.asteroidDamageTracking.has(damageKey)) {
+      room.asteroidDamageTracking.add(damageKey);
+      
+      // Deduct points for hitting asteroid
+      if (playerIndex === 0) {
+        room.state.scores.shipOne = Math.max(0, room.state.scores.shipOne - 5);
+      } else if (playerIndex === 1) {
+        room.state.scores.shipTwo = Math.max(0, room.state.scores.shipTwo - 5);
+      }
+      
+      // Broadcast updated scores
+      io.to(roomId).emit("scoreUpdated", room.state.scores);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -226,8 +369,8 @@ io.on("connection", (socket) => {
     const room = rooms[roomId];
     const index = room.players.indexOf(socket.id);
     if (index !== -1) {
-        room.players.splice(index, 1);
-        socket.to(roomId).emit("playerLeft", socket.id);
+      room.players.splice(index, 1);
+      socket.to(roomId).emit("playerLeft", socket.id);
     }
 
     if (room.players.length === 0) delete rooms[roomId];
@@ -235,7 +378,6 @@ io.on("connection", (socket) => {
     delete socketRooms[socket.id];
   });
 });
-
 
 httpServer.listen(3000, async () => {
   console.log("Server running on http://localhost:3000");
@@ -251,20 +393,60 @@ httpServer.listen(3000, async () => {
 });
 
 function generateRoomId(length = 6) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let id = '';
-    for (let i = 0; i < length; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '';
+  for (let i = 0; i < length; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
 }
 
 function findOrCreateRoom() {
-    for (const id in rooms) {
-        if (rooms[id] && rooms[id].players.length < 2) return id;
-    }
-    const newId = generateRoomId();
-    const asteroidSeed = newId + "_asteroidSeed";
-    rooms[newId] = { players: [], userIds: [], state: { p1: null, p2: null, bullets: [], turn: 0, turnCount: 1, scores: {shipOne: 0, shipTwo: 0} }, asteroidSeed };
-    return newId;
+  for (const id in rooms) {
+    if (rooms[id] && rooms[id].players.length < 2) return id;
+  }
+  const newId = generateRoomId();
+  const asteroidSeed = newId + "_asteroidSeed";
+  
+  // Create room with asteroid field
+  rooms[newId] = { 
+    players: [], 
+    userIds: [],
+    state: { 
+      p1: null, 
+      p2: null, 
+      bullets: [], 
+      turn: 0, 
+      turnCount: 1, 
+      scores: {shipOne: 0, shipTwo: 0} 
+    }, 
+    asteroidSeed,
+    asteroidField: new AsteroidField(asteroidSeed, { x: 800, y: 600 })
+  };
+  return newId;
 }
+
+// Server-wide asteroid tick
+const ASTEROID_TICK_MS = 100; // send updates every 100ms
+let lastServerTick = Date.now();
+
+function serverAsteroidTick() {
+  const now = Date.now();
+  const deltaMS = now - lastServerTick;
+  lastServerTick = now;
+
+  // iterate rooms and update asteroid fields, then emit updates
+  for (const roomId in rooms) {
+    const room = rooms[roomId];
+    if (!room || !room.asteroidField) continue;
+
+    room.asteroidField.updateAll(deltaMS);
+    io.to(roomId).emit("asteroidUpdate", {
+      asteroidState: room.asteroidField.getState(),
+      timestamp: now
+    });
+  }
+}
+
+// Start the loop
+setInterval(serverAsteroidTick, ASTEROID_TICK_MS);
