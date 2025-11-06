@@ -25,7 +25,8 @@ import HighScoresScene from './highScores.js';
     const gameWorld = new Container();
     const border = new Graphics().rect(0, 0, baseWidth, baseHeight).fill('#000000ff', 0).stroke(2, '#ff0000');
     const queueText = new Text({text: "Waiting For Player...", style: {fontSize: 32, fill: "#ffffff", allign: "center"}});
-    const network = new Network("http://localhost:3000");
+    const serverUrl = (import.meta.env.VITE_SERVER_URL) || "http://localhost:3000";
+    const network = new Network(serverUrl);
     let asteroidField;
     let accumulator = 0;
     let inputPlayerIndex;
@@ -108,7 +109,7 @@ import HighScoresScene from './highScores.js';
             return;
         }
 
-        const response = await fetch("http://localhost:3000/register", {
+    const response = await fetch(`${serverUrl}/register`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({username: info.username, password: info.password})
@@ -124,7 +125,7 @@ import HighScoresScene from './highScores.js';
     }
     
     async function submitLogin(info, res) {
-        const response = await fetch("http://localhost:3000/login", {
+    const response = await fetch(`${serverUrl}/login`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({username: info.username, password: info.password})
@@ -219,8 +220,8 @@ import HighScoresScene from './highScores.js';
     async function startGame(loginType) {
         let turnCount = 1;
         const turnText = new Text({text: "Turn: 1", style: {fontSize: 24, fill: "#ffffff"}});
-        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0);
-        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1);
+        const shipOne = new Ship(await Assets.load('/assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0);
+        const shipTwo = new Ship(await Assets.load('/assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1);
         const shipOneScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         const shipTwoScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         shipOneScoreText.x = 10;
