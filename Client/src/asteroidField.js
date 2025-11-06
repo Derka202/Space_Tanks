@@ -13,7 +13,7 @@ export class AsteroidField {
 
     async init(gameWorld) {
         try {
-            this.texture = await Assets.load("assets/asteroid.png");
+            this.texture = await Assets.load("/assets/asteroid.png");
         } catch (error) {
             console.error("Failed to load asteroid texture:", error);
             this.texture = null;
