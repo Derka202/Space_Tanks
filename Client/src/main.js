@@ -1,4 +1,5 @@
 import { Application, Ticker, Container, Graphics, Assets, Text } from 'pixi.js';
+import PlayerHistoryScene from './playerHistory.js';
 import InstructionsScene from '../instructions.js';
 import { AsteroidField } from "./asteroidField.js";
 import { Ship, collision } from "./ship.js";
@@ -7,6 +8,7 @@ import GameOverScene from './gameOver.js';
 import WelcomeScene from './welcome.js';
 import InputHandler from './input.js';
 import MainMenuScene from './menu.js';
+import ReplayScene from './replay.js';
 import LoginScene from './login.js';
 import Network from "./network.js";
 import { Button } from '@pixi/ui';
@@ -156,14 +158,27 @@ import HighScoresScene from './highScores.js';
     
     function mainMenu(userId, username) {
         clearScreen();
-        const mainMenu = new MainMenuScene(playGame, console.log("w"), highScores, instructions, username, baseWidth, baseHeight);
+        const mainMenu = new MainMenuScene(playGame, playerHistory, highScores, instructions, username, baseWidth, baseHeight);
         gameWorld.addChild(mainMenu.view);
     }
 
     function instructions() {
-        clearScreen()
+        clearScreen();
         const instructions = new InstructionsScene(backToMainMenu, baseWidth, baseHeight);
         gameWorld.addChild(instructions.view);
+    }
+
+    function playerHistory() {
+        clearScreen();
+        const playerHistory = new PlayerHistoryScene(userId, (gameId) => replayGame(gameId), backToMainMenu, baseWidth, baseHeight);
+        gameWorld.addChild(playerHistory.view);
+    }
+
+    function replayGame(gameId) {
+        console.log(gameId);
+        clearScreen();
+        const replayScene = new ReplayScene(gameId, playerHistory, baseWidth, baseHeight);
+        gameWorld.addChild(replayScene.view);
     }
 
     async function highScores() {
@@ -219,25 +234,34 @@ import HighScoresScene from './highScores.js';
     async function startGame(loginType) {
         let turnCount = 1;
         const turnText = new Text({text: "Turn: 1", style: {fontSize: 24, fill: "#ffffff"}});
-        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0);
-        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1);
+        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0, network, roomId);
+        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1, network, roomId);
         const shipOneScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         const shipTwoScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
+        const shipOneFuelText = new Text({text: "Fuel: 100", style: {fontSize: 20, fill: "#FFFF00"}});
+        const shipTwoFuelText = new Text({text: "Fuel: 100", style: {fontSize: 20, fill: "#FFFF00"}});
         shipOneScoreText.x = 10;
         shipOneScoreText.y = 10;
         shipTwoScoreText.x = baseWidth - 110;
         shipTwoScoreText.y = 10;
         turnText.x = baseWidth / 2;
         turnText.y = 10
+        shipOneFuelText.x = 10;
+        shipOneFuelText.y = 40;
+        shipTwoFuelText.x = baseWidth - 110;
+        shipTwoFuelText.y = 40;
         gameWorld.addChild(shipOne.sprite);
         gameWorld.addChild(shipTwo.sprite);
         gameWorld.addChild(shipOneScoreText);
         gameWorld.addChild(shipTwoScoreText);
         gameWorld.addChild(turnText);
+        gameWorld.addChild(shipOneFuelText);
+        gameWorld.addChild(shipTwoFuelText);
         
         inputHandler = new InputHandler(shipOne, shipTwo, () => gameWorld.currentScale, baseWidth, baseHeight, network);
         inputHandler.setPlayerIndex(inputPlayerIndex);
         inputHandler.canMove = (inputPlayerIndex === currentTurn);
+        inputHandler.roomId = roomId;
 
         
         function checkBulletCollisions(attacker, target, container) {
@@ -257,11 +281,23 @@ import HighScoresScene from './highScores.js';
             }
         }
 
-        network.onTurnChange(({currentTurn: turnId, turnCount: turn, asteroidState}) => {
+        network.onTurnChange(({currentTurn: turnId, turnCount: turn, asteroidState, fuel}) => {
             currentTurn = turnId;
             inputHandler.canMove = (inputPlayerIndex === currentTurn);
             turnCount = turn;
             turnText.text = `Turn: ${turnCount}`;
+
+            shipOne.fuel = fuel.shipOne;
+            shipTwo.fuel = fuel.shipTwo;
+            shipOneFuelText.text = `Fuel: ${Math.round(shipOne.fuel)}`;
+            shipTwoFuelText.text = `Fuel: ${Math.round(shipTwo.fuel)}`;
+
+            if (currentTurn === 0) {
+                shipOne.refillFuel();
+            }
+            else {
+                shipTwo.refillFuel();
+            }
         
             if (asteroidState && asteroidField) {
                 asteroidField.syncFromServer(asteroidState, gameWorld);
@@ -282,9 +318,22 @@ import HighScoresScene from './highScores.js';
             if (id === network.socket.id) return;
             
             const otherShip = inputPlayerIndex === 0 ? shipTwo : shipOne;
+            console.log(pos);
             otherShip.sprite.x = pos.x;
             otherShip.sprite.y = pos.y;
             otherShip.sprite.rotation = pos.rotation;
+        });
+
+        network.onFuelUpdated((fuelState) => {
+            shipOneFuelText.text = `Fuel: ${Math.round(fuelState.shipOne)}`;
+            shipTwoFuelText.text = `Fuel: ${Math.round(fuelState.shipTwo)}`;
+            
+            if (inputPlayerIndex === 0) {
+                shipOne.fuel = fuelState.shipOne;
+            }
+            else {
+                shipTwo.fuel = fuelState.shipTwo;
+            }
         });
 
         network.onBulletFired((data) => {
@@ -310,6 +359,8 @@ import HighScoresScene from './highScores.js';
 
         while (accumulator >= tickInterval) {
             inputHandler.update();
+            shipOneFuelText.style.fill = shipOne.fuel > 20 ? "#FFFF00" : "#FF0000";
+            shipTwoFuelText.style.fill = shipTwo.fuel > 20 ? "#FFFF00" : "#FF0000";
             shipOne.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
             shipTwo.updateBullets(gameWorld, {width: baseWidth, height: baseHeight}, network, roomId, inputPlayerIndex);
             //moving the asteroid update to the server
@@ -346,7 +397,7 @@ import HighScoresScene from './highScores.js';
                 const hitKey = `${shipIndex}-${asteroid.id}`;
                 
                 if (shipIndex === inputPlayerIndex && !shipAsteroidHits.has(hitKey)) {
-                    console.log(`My ship hit asteroid!`);
+                    // console.log(`My ship hit asteroid!`);
                     shipAsteroidHits.add(hitKey);
                     network.sendAsteroidDamage(roomId, asteroid.id);
                 }

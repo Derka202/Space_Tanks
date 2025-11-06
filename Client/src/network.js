@@ -25,6 +25,14 @@ export default class Network {
         this.socket.on("playerMoved", callback);
     }
 
+    sendFuelUsed(roomId, player, amount) {
+        this.socket.emit("fuelUsed", { roomId, player, amount });
+    }
+
+    onFuelUpdated(callback) {
+        this.socket.on("fuelUpdated", callback)
+    }
+
     onRoomJoined(callback) {
         this.socket.on("roomJoined", callback);
     }

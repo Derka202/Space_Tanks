@@ -3,7 +3,7 @@ import { createBullet } from "./bullets.js";
 import Network from "./network.js";
 
 export class Ship {
-    constructor(texture, x, y, rotation = 0, scale = 2, bounds = { width: 800, height: 600 }, margin = 5, playerIndex) {
+    constructor(texture, x, y, rotation = 0, scale = 2, bounds = { width: 800, height: 600 }, margin = 5, playerIndex, network, roomId) {
         this.sprite = new Sprite(texture);
         this.sprite.pivot.set(texture.width / 2, texture.height / 2);
         this.sprite.x = x;
@@ -13,13 +13,19 @@ export class Ship {
         this.bounds = bounds;
         this.margin = margin;
         this.playerIndex = playerIndex
+        this.network = network;
+        this.roomId = roomId;
 
         this.speed = 2;
         this.rotationSpeed = 0.05;
         this.bullets = [];
+        this.maxFuel = 100;
+        this.fuel = this.maxFuel;
     }
 
     move(dx, dy, otherShip) {
+        if (this.fuel <= 0) return;
+
         const nextX = this.sprite.x + dx * this.speed;
         const nextY = this.sprite.y + dy * this.speed;
 
@@ -44,6 +50,7 @@ export class Ship {
 
     this.sprite.x = clampedX;
     this.sprite.y = clampedY;
+    this.useFuel(0.5, this.network, this.roomId);
     }
 
     rotate(dir) {
@@ -88,6 +95,16 @@ export class Ship {
         const bullet = createBullet(x, y, rotation, inputPlayerIndex);
         container.addChild(bullet);
         return bullet;
+    }
+
+    useFuel(amount, network, roomId) {
+        this.fuel  = Math.max(0, this.fuel - amount);
+        network.sendFuelUsed(roomId, this.playerIndex, amount);
+        console.log("Current fuel level: ", this.fuel);
+    }
+
+    refillFuel() {
+        this.fuel = this.maxFuel
     }
 }
 

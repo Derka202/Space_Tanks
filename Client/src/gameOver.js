@@ -39,8 +39,6 @@ export default class GameOverScene {
         menuButton.view.y = 500;
         column.addChild(menuButton.view);
 
-        column.x = baseWidth / 2;
-        column.y = baseHeight / 2;
         this.container.addChild(column);
     }
 

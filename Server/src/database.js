@@ -84,4 +84,48 @@ export async function recordGameStats(gameId, winnerId, loserId, winnerScore, lo
     }
 }
 
+// Save the events of the game for replay
+export async function saveReplay(gameId, replayData) {
+    try {
+        const [result] = await pool.execute("INSERT INTO GAME_REPLAYS (game_id, replay_data) VALUES (?, ?)", [gameId, JSON.stringify(replayData)]);
+        return result;
+    } catch (err) {
+        console.error("Unexprected DB error:", err);
+        throw err;
+    }
+}
+
+//Get game replay
+export async function getReplay(gameId) {
+    try {
+        const [result] = await pool.execute("SELECT replay_data FROM GAME_REPLAYS WHERE game_id = ?", [gameId]);
+        return result
+    } catch (err) {
+        console.error("Unexpected DB error:", err);
+        throw err;
+    }
+}
+
+export async function getUserGames(userId) {
+    try {
+        const [rows] = await pool.execute(`
+            SELECT 
+                g.game_id,
+                g.play_date_time,
+                p.score,
+                p.is_winner,
+                r.replay_data
+            FROM PARTICIPANTS p
+            JOIN GAMES g ON p.game_id = g.game_id
+            LEFT JOIN GAME_REPLAYS r ON g.game_id = r.game_id
+            WHERE p.user_id = ? 
+            ORDER BY g.play_date_time DESC;`, [userId]
+        );
+        return rows;
+    } catch (err) {
+        console.error("Unexpected DB error", err);
+        throw err;
+    }
+}
+
 ///TODO: update to add number of matches played column to users table and methods/table for powerups

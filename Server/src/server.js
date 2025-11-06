@@ -1,4 +1,4 @@
-import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats } from "./database.js";
+import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats, saveReplay, getReplay, getUserGames } from "./database.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import seedrandom from "seedrandom";
@@ -172,6 +172,29 @@ const httpServer = createServer(async (req, res) => {
       sendJson(res, {success: false, error: err.message}, 500);
     }
   }
+
+  if (req.method === "GET" && req.url.startsWith("/getusergames")) {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const userId = url.searchParams.get("userid");
+      const games = await getUserGames(userId);
+      sendJson(res, {success: true, games});
+    } catch (err) {
+      sendJson(res, {success: false, error: err.message}, 500)
+    }
+  }
+
+  if (req.method === "GET" && req.url.startsWith("/getgamedata")) {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const gameId = url.searchParams.get("gameid");
+      const replayRows = await getReplay(gameId);
+      const replayData = replayRows[0].replay_data;
+      sendJson(res, {success: true, replayData});
+    } catch (err) {
+      sendJson(res, {success: false, error: err.message}, 500);
+    }
+  }
 });
 
 const io = new Server(httpServer, {
@@ -183,17 +206,29 @@ const io = new Server(httpServer, {
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
-  socket.on("updatePosition", (pos) => {
+  socket.on("updatePosition", (data) => {
     const roomId = socketRooms[socket.id];
     if (!roomId) return;
-
     const room = rooms[roomId];
 
     const playerIndex = room.players.indexOf(socket.id);
-    if (playerIndex === 0) room.state.p1 = pos;
-    if (playerIndex === 1) room.state.p2 = pos;
+    const shipKey = playerIndex === 0 ? "shipOne" : "shipTwo";
 
-    socket.to(roomId).emit("playerMoved", { id: socket.id, pos });
+    if (playerIndex === room.state.turn) {
+      const fuelCost = 1;
+      if (room.state.fuel[shipKey] >= fuelCost) {
+        room.state.fuel[shipKey] -= fuelCost;
+      }
+
+      const pos = {x: data.x, y: data.y, rotation: data.rotation};
+      if (playerIndex === 0) room.state.p1 = pos;
+      else room.state.p2 = pos;
+      
+      io.to(roomId).emit("playerMoved", {
+        id: socket.id,
+        pos: pos,
+      });
+    }
   });
 
   socket.on("autoJoin", (userId) => {
@@ -248,14 +283,32 @@ io.on("connection", (socket) => {
     // Update asteroids before turn change
     room.asteroidField.updateAll(1000); // 1 second of physics per turn
     
+    //Record Game Events
+    room.replay.turns.push({
+      turn: room.state.turnCount,
+      scores: { ...room.state.scores },
+      fuel: { ...room.state.fuel },
+      asteroids: room.asteroidField.getState(),
+      ships: {
+        shipOne: room.state.p1,
+        shipTwo: room.state.p2
+      }
+    });
+
+    // Progress Turn
     room.state.turn = (room.state.turn + 1) % 2;
     room.state.turnCount++;
+
+    // Refuel ship if turn
+    if (room.state.turn === 0) room.state.fuel.shipOne = 100;
+    else room.state.fuel.shipTwo = 100;
     
     // Send turn change with asteroid state
     io.to(roomId).emit("turnChange", {
       currentTurn: room.state.turn, 
       turnCount: room.state.turnCount,
-      asteroidState: room.asteroidField.getState()
+      asteroidState: room.asteroidField.getState(),
+      fuel: room.state.fuel
     });
 
       if (room.state.turnCount == 21) {
@@ -282,20 +335,22 @@ io.on("connection", (socket) => {
           winningShip = "Tie";
         }
 
-        const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
-        console.log("Created game record with ID---:", gameId);
-        const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
-        console.log("Recorded game stats:", gameRecord);
+        if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
+          const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
+          console.log("Created game record with ID---:", gameId);
+          const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
+          console.log("Recorded game stats:", gameRecord);
+  
+          try {
+            await saveReplay(gameId, room.replay);
+            console.log("Successfully stored game replay data")
+          } catch (err) {
+            console.error("Failed to save replay: ", err);
+          }
+        }
 
         io.to(roomId).emit("gameOver", {winner: winningShip, scores: room.state.scores});
       }
-    if (room.state.turnCount == 21) {
-      let winningShip = null;
-      if (room.state.scores.shipOne > room.state.scores.shipTwo) winningShip = "Ship One";
-      else if (room.state.scores.shipOne < room.state.scores.shipTwo) winningShip = "Ship Two";
-      else winningShip = "Tie";
-      io.to(roomId).emit("gameOver", {winner: winningShip, scores: room.state.scores});
-    }
   });
 
   socket.on("bulletHit", () => {
@@ -362,6 +417,15 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("fuelUsed", ({ roomId, player, amount }) => {
+    const room = rooms[roomId];
+
+    const fuelKey = player === 0 ? "shipOne" : "shipTwo";
+    room.state.fuel[fuelKey] = Math.max(0, room.state.fuel[fuelKey] - amount);
+
+    io.to(roomId).emit("fuelUpdated", room.state.fuel);
+  });
+
   socket.on("disconnect", () => {
     const roomId = socketRooms[socket.id];
     if (!roomId) return;
@@ -418,16 +482,20 @@ function findOrCreateRoom() {
       bullets: [], 
       turn: 0, 
       turnCount: 1, 
-      scores: {shipOne: 0, shipTwo: 0} 
+      scores: {shipOne: 0, shipTwo: 0},
+      fuel: {shipOne: 100, shipTwo: 100}
     }, 
     asteroidSeed,
-    asteroidField: new AsteroidField(asteroidSeed, { x: 800, y: 600 })
+    asteroidField: new AsteroidField(asteroidSeed, { x: 800, y: 600 }),
+    replay: {
+      turns: []
+    }
   };
   return newId;
 }
 
 // Server-wide asteroid tick
-const ASTEROID_TICK_MS = 100; // send updates every 100ms
+const ASTEROID_TICK_MS = 5; // send updates every 100ms
 let lastServerTick = Date.now();
 
 function serverAsteroidTick() {
