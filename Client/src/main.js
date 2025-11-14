@@ -262,8 +262,8 @@ import HighScoresScene from './highScores.js';
     async function startGame() {
         let turnCount = 1;
         const turnText = new Text({text: "Turn: 1", style: {fontSize: 24, fill: "#ffffff"}});
-        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0);
-        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1);
+        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0, network, roomId);
+        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1, network, roomId);
         const shipOneScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         const shipTwoScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         const shipOneFuelText = new Text({text: "Fuel: 100", style: {fontSize: 20, fill: "#FFFF00"}});
@@ -379,7 +379,7 @@ import HighScoresScene from './highScores.js';
 
             const gameOver = new GameOverScene(mainMenu, winner, players, scores, baseWidth, baseHeight);
             if (user !== "guest") {
-                const response = await fetch(`http://localhost:3000/personalbest?username=${user}`);
+                const response = await fetch(`${serverUrl}/personalbest?username=${user}`);
                 const data = await response.json();
                 gameOver.setPersonalBest(data.personalBest);
 

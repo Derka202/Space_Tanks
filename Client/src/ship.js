@@ -98,7 +98,7 @@ export class Ship {
     }
 
     useFuel(amount, network, roomId) {
-        this.fuel  = Math.max(0, this.fuel - amount);
+        // this.fuel  = Math.max(0, this.fuel - amount);
         network.sendFuelUsed(roomId, this.playerIndex, amount);
         console.log("Current fuel level: ", this.fuel);
     }

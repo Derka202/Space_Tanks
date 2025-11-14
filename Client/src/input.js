@@ -35,10 +35,10 @@ export default class InputHandler {
         const hasFuel = myShip.fuel > 0;
         
         if (hasFuel) {
-            if (this.keys["w"]) myShip.move(0, -1, otherShip, this.network, this.roomId);
-            if (this.keys["s"]) myShip.move(0, 1, otherShip, this.network, this.roomId);
-            if (this.keys["a"]) myShip.move(-1, 0, otherShip, this.network, this.roomId);
-            if (this.keys["d"]) myShip.move(1, 0, otherShip, this.network, this.roomId);
+            if (this.keys["w"]) myShip.move(0, -1, otherShip);
+            if (this.keys["s"]) myShip.move(0, 1, otherShip);
+            if (this.keys["a"]) myShip.move(-1, 0, otherShip);
+            if (this.keys["d"]) myShip.move(1, 0, otherShip);
         }
         if (this.keys["e"]) myShip.rotate(1);
         if (this.keys["q"]) myShip.rotate(-1);
