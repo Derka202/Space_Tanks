@@ -1,4 +1,4 @@
-import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats, saveReplay, getReplay, getUserGames } from "./database.js";
+import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats, saveReplay, getReplay, getUserGames, getUserHighScore } from "./database.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import seedrandom from "seedrandom";
@@ -130,6 +130,15 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method == "GET" && req.url.startsWith("/personalbest")) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const username = url.searchParams.get("username");
+    const personalBest = await getUserHighScore(username);
+    
+
+    sendJson(res, {success: true, personalBest})
+  }
+
   if (req.method === "POST" && req.url === "/login") {
     try {
       const body = await getJsonBody(req);
@@ -150,9 +159,7 @@ const httpServer = createServer(async (req, res) => {
 
   if (req.method === "GET" && req.url === "/highscores") {
     try {
-      console.log("Received request for high scores");
-      const scores = await getTopHighScores(10);
-      console.log(scores);
+      const scores = await getTopHighScores(15);
 
       sendJson(res, {success: true, scores});
     } catch (err) {
@@ -161,12 +168,10 @@ const httpServer = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && req.url === "/creategamerecord") {
-    console.log("Received request to create game record");
     try {
       const ids = await getJsonBody(req);
 
       const gameId = await createGameRecord(ids.userId1, ids.userId2);
-      console.log("Created game record with ID:", gameId);
       sendJson(res, {success: true, gameId});
     } catch (err) {
       sendJson(res, {success: false, error: err.message}, 500);
@@ -231,10 +236,11 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("autoJoin", (userId) => {
+  socket.on("joinRoom", (user, userId) => {
     const roomId = findOrCreateRoom();
     const room = rooms[roomId];
     room.players.push(socket.id);
+    room.usernames.push(user);
     room.userIds.push(userId);
     socket.join(roomId);
     socketRooms[socket.id] = roomId;
@@ -275,6 +281,23 @@ io.on("connection", (socket) => {
       owner: socket.id,
       playerIndex: playerIndex
     });
+  });
+
+  socket.on("leaveQueue", () => {
+    const roomId = socketRooms[socket.id];
+    if (!roomId) return;
+
+    const room = rooms[roomId];
+    if (!room) return;
+
+    const playerIndex = room.players.indexOf(socket.id);
+    if (playerIndex !== -1) {
+        room.players.splice(playerIndex, 1);
+        room.userIds.splice(playerIndex, 1);
+        socket.leave(roomId);
+        delete socketRooms[socket.id];
+        delete rooms[roomId];
+    }
   });
     
   socket.on("bulletEnded", async ({roomId}) => {
@@ -318,14 +341,14 @@ io.on("connection", (socket) => {
         let loserId = null;
         let loserScore = null;
         if (room.state.scores.shipOne > room.state.scores.shipTwo) {
-          winningShip = "Ship One";
+          winningShip = room.usernames[0];
           winnerId = room.userIds[0];
           winnerScore = room.state.scores.shipOne;
           loserId = room.userIds[1];
           loserScore = room.state.scores.shipTwo;
         }
         else if (room.state.scores.shipOne < room.state.scores.shipTwo) {
-          winningShip = "Ship Two";
+          winningShip = room.usernames[1];
           winnerId = room.userIds[1];
           winnerScore = room.state.scores.shipTwo;
           loserId = room.userIds[0];
@@ -337,19 +360,16 @@ io.on("connection", (socket) => {
 
         if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
           const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
-          console.log("Created game record with ID---:", gameId);
           const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
-          console.log("Recorded game stats:", gameRecord);
   
           try {
             await saveReplay(gameId, room.replay);
-            console.log("Successfully stored game replay data")
           } catch (err) {
             console.error("Failed to save replay: ", err);
           }
         }
 
-        io.to(roomId).emit("gameOver", {winner: winningShip, scores: room.state.scores});
+        io.to(roomId).emit("gameOver", {winner: winningShip, players: room.usernames, scores: room.state.scores});
       }
   });
 
@@ -474,7 +494,8 @@ function findOrCreateRoom() {
   
   // Create room with asteroid field
   rooms[newId] = { 
-    players: [], 
+    players: [],
+    usernames: [],
     userIds: [],
     state: { 
       p1: null, 
@@ -495,7 +516,7 @@ function findOrCreateRoom() {
 }
 
 // Server-wide asteroid tick
-const ASTEROID_TICK_MS = 5; // send updates every 100ms
+const ASTEROID_TICK_MS = 50; // send updates every 100ms
 let lastServerTick = Date.now();
 
 function serverAsteroidTick() {

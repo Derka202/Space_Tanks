@@ -13,8 +13,8 @@ export default class Network {
         });
     }
 
-    autoJoin(userId) {
-        this.socket.emit("autoJoin", userId);
+    joinRoom(user, userId) {
+        this.socket.emit("joinRoom", user, userId);
     }
 
     sendPosition(data, roomId) {
@@ -31,6 +31,10 @@ export default class Network {
 
     onFuelUpdated(callback) {
         this.socket.on("fuelUpdated", callback)
+    }
+
+    sendLeaveQueue() {
+        this.socket.emit("leaveQueue");
     }
 
     onRoomJoined(callback) {

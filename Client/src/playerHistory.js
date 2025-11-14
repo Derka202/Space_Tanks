@@ -19,8 +19,8 @@ export default class PlayerHistoryScene {
 
         const title = new Text({text: "Player History", style: {fill: "#FFFFFF", fontSize: 36}});
         title.anchor.set(0.5);
-        title.x = 0;
-        title.y = -this.baseHeight / 2 + 60;
+        title.x = -260;
+        title.y = -260;
         column.addChild(title);
 
         const backBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0xaa4444);

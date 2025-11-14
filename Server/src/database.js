@@ -37,10 +37,10 @@ export async function isValidUser(username, password) {
 }
 
 ///Get user highscore
-async function getUserHighScore(username) {
-    const [rows] = await pool.execute("SELECT highest_score FROM users WHERE username = ?", [username]);
+export async function getUserHighScore(username) {
+    const [rows] = await pool.execute(`SELECT MAX(p.score) AS personal_best FROM participants p JOIN users u ON u.user_id = p.user_id WHERE u.username = ?`, [username]);
     if (rows.length > 0) {
-        return rows[0].highest_score;
+        return rows[0].personal_best;
     } else {
         return null;
     }

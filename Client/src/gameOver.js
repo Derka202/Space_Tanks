@@ -2,7 +2,7 @@ import { Button } from "@pixi/ui";
 import { Container, Graphics, Text } from "pixi.js";
 
 export default class GameOverScene {
-    constructor(onMenu, winner, scores, baseWidth, baseHeight) {
+    constructor(onMenu, winner, players, scores, baseWidth, baseHeight) {
         this.container = new Container();
         const column = new Container();
 
@@ -15,7 +15,7 @@ export default class GameOverScene {
         gameOverText.y = baseHeight / 2 - 40;
         column.addChild(gameOverText);
         
-        const scoreText = new Text({text: `Final Scores:\nShip One: ${scores.shipOne}\nShip Two: ${scores.shipTwo}`, style: {fontSize: 28, fill: "#ffffff", align: "center"}});
+        const scoreText = new Text({text: `Final Scores:\n${players[0]}: ${scores.shipOne}\n${players[1]}: ${scores.shipTwo}`, style: {fontSize: 28, fill: "#ffffff", align: "center"}});
         scoreText.anchor.set(0.5);
         scoreText.x = baseWidth / 2;
         scoreText.y = baseHeight / 2 + 50;
@@ -26,6 +26,12 @@ export default class GameOverScene {
         winnerText.x = baseWidth / 2;
         winnerText.y = baseHeight / 2 + 130;
         column.addChild(winnerText);
+
+        this.personalBestText = new Text({text: "", style: {fontSize: 18, fill: "#FFFFFF"}});
+        this.personalBestText.anchor.set(0.5);
+        this.personalBestText.x = baseWidth / 2;
+        this.personalBestText.y = baseHeight / 2 + 160;
+        column.addChild(this.personalBestText);
         
         const menuButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
         const menuButton = new Button(menuButtonBg);
@@ -40,6 +46,10 @@ export default class GameOverScene {
         column.addChild(menuButton.view);
 
         this.container.addChild(column);
+    }
+
+    setPersonalBest(score) {
+        this.personalBestText.text = "Personal Best: " + score;
     }
 
     get view() {

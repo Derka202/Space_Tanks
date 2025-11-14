@@ -8,8 +8,8 @@ export default class InstructionsScene {
 
         const title = new Text({text: "Instructions", style: {fontSize: 42, fill: "#ffffff", align: "center"}});
         title.anchor.set(0.5);
-        title.x = 0;
-        title.y = -200;
+        title.x = -260;
+        title.y = -260;
         column.addChild(title);
 
         const instructionsText = new Text({text: "Space Tanks is a turn based strategy shooter game where players must deal as much\ndamage as possible to their opponents. Hitting another player with a bullet give you 20 points.\n\n\n\n\n        WASD controls movement\n        QE controls rotation\n        Spacebar to shoot",
@@ -26,7 +26,8 @@ export default class InstructionsScene {
         backText.x = backBg.width / 2;
         backText.y = backBg.height / 2;
         backButton.view.addChild(backText);
-        backButton.view.y = 130;
+        backButton.view.x = 175;
+        backButton.view.y = 240;
         column.addChild(backButton.view);
         
         column.x = baseWidth / 2;
