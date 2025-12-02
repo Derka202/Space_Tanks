@@ -280,8 +280,7 @@ io.on("connection", (socket) => {
       x: bullet.x,
       y: bullet.y,
       rotation: bullet.rotation,
-      owner: socket.id,
-      playerIndex: playerIndex
+      owner: playerIndex
     });
   });
 
@@ -301,110 +300,70 @@ io.on("connection", (socket) => {
         delete rooms[roomId];
     }
   });
+
+  socket.on("powerUpCollected", ({roomId, id}) => {
+    const room = rooms[roomId];
+    const p = room.powerups.find(p => p.id === id);
+    if (!p) return;
+
+    room.powerups = room.powerups.filter(pp => pp.id !== id);
+    const playerIndex = room.players.indexOf(socket.id);
+    const key = playerIndex === 0 ? "shipOne" : "shipTwo";
+
+    if (p.type === "shield") {
+      p.turnsLeft = 3;
+      room.state.powerups[key].shield = p;
+    }
+
+    io.to(roomId).emit("powerUpRemoved", {id, playerIndex, type: p.type});
+  });
     
   socket.on("bulletEnded", async ({roomId}) => {
     const room = rooms[roomId];
     
-    // Update asteroids before turn change
-    room.asteroidField.updateAll(1000); // 1 second of physics per turn
-    
-    //Record Game Events
-    room.replay.turns.push({
-      turn: room.state.turnCount,
-      scores: { ...room.state.scores },
-      fuel: { ...room.state.fuel },
-      asteroids: room.asteroidField.getState(),
-      ships: {
-        shipOne: room.state.p1,
-        shipTwo: room.state.p2
-      }
-    });
-
-    // Progress Turn
-    room.state.turn = (room.state.turn + 1) % 2;
-    room.state.turnCount++;
-
-    // Refuel ship if turn
-    if (room.state.turn === 0) room.state.fuel.shipOne = 100;
-    else room.state.fuel.shipTwo = 100;
-    
-    // Send turn change with asteroid state
-    io.to(roomId).emit("turnChange", {
-      currentTurn: room.state.turn, 
-      turnCount: room.state.turnCount,
-      asteroidState: room.asteroidField.getState(),
-      fuel: room.state.fuel
-    });
-
-      if (room.state.turnCount == 21) {
-        let winningShip = null;
-        let winnerId = null;
-        let winnerScore = null;
-        let loserId = null;
-        let loserScore = null;
-        if (room.state.scores.shipOne > room.state.scores.shipTwo) {
-          winningShip = room.usernames[0];
-          winnerId = room.userIds[0];
-          winnerScore = room.state.scores.shipOne;
-          loserId = room.userIds[1];
-          loserScore = room.state.scores.shipTwo;
-        }
-        else if (room.state.scores.shipOne < room.state.scores.shipTwo) {
-          winningShip = room.usernames[1];
-          winnerId = room.userIds[1];
-          winnerScore = room.state.scores.shipTwo;
-          loserId = room.userIds[0];
-          loserScore = room.state.scores.shipOne;
-        }
-        else {
-          winningShip = "Tie";
-        }
-
-        if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
-          const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
-          const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
-  
-          try {
-            await saveReplay(gameId, room.replay);
-          } catch (err) {
-            console.error("Failed to save replay: ", err);
-          }
-        }
-
-        io.to(roomId).emit("gameOver", {winner: winningShip, players: room.usernames, scores: room.state.scores});
-      }
+    progressTurn(roomId);
   });
 
   socket.on("bulletHit", () => {
     const roomId = socketRooms[socket.id];
     const room = rooms[roomId];
-    const playerIndex = room.players.indexOf(socket.id);
+    const shooterIndex = room.players.indexOf(socket.id);
+    const hitPlayerIndex = shooterIndex === 0 ? 1 : 0;
+    const hitKey = hitPlayerIndex === 0 ? "shipOne" : "shipTwo";
+    const shooterKey = shooterIndex === 0 ? "shipOne" : "shipTwo";
+    const shieldPowerUp = room.state.powerups[hitKey].shield;
 
-    if (playerIndex === 0) room.state.scores.shipOne += 20;
-    else if (playerIndex === 1) room.state.scores.shipTwo += 20;
+    if (shieldPowerUp && shieldPowerUp.turnsLeft > 0) {
+      room.state.powerups[hitKey].shield = null;
+      io.to(roomId).emit("powerUpExpired", {playerKey: hitKey, type: shieldPowerUp.type});
+      return;
+    }
 
+    room.state.scores[shooterKey] += 20;
     io.to(roomId).emit("scoreUpdated", room.state.scores);
   });
 
   // Handle bullet hitting asteroid
-  socket.on("asteroidHit", ({ roomId, asteroidId }) => {
+  socket.on("asteroidHit", ({ roomId, asteroidId, bulletOwnerIndex, bulletIndex }) => {
     const room = rooms[roomId];
     if (!room) return;
     
     // Remove asteroid from server state
     const removed = room.asteroidField.removeAsteroid(asteroidId);
     if (removed) {
-      const playerIndex = room.players.indexOf(socket.id);
-      
       // Award points for destroying asteroid
-      if (playerIndex === 0) {
+      if (bulletOwnerIndex === 0) {
         room.state.scores.shipOne += 10;
-      } else if (playerIndex === 1) {
+      } else if (bulletOwnerIndex === 1) {
         room.state.scores.shipTwo += 10;
       }
       
       // Broadcast updated scores
       io.to(roomId).emit("scoreUpdated", room.state.scores);
+
+      io.to(roomId).emit("bulletDestroyed", {ownerIndex: bulletOwnerIndex, bulletIndex});
+
+      progressTurn(roomId);
     }
   });
 
@@ -478,6 +437,106 @@ httpServer.listen(3000, async () => {
   }
 });
 
+async function progressTurn(roomId) {
+  const room = rooms[roomId];
+
+  // Update asteroids before turn change
+  room.asteroidField.updateAll(1000);
+
+  //Record Game Events
+    room.replay.turns.push({
+      turn: room.state.turnCount,
+      scores: { ...room.state.scores },
+      fuel: { ...room.state.fuel },
+      asteroids: room.asteroidField.getState(),
+      ships: {
+        shipOne: room.state.p1,
+        shipTwo: room.state.p2
+      },
+      activePowerups: { ...room.state.powerups },
+      uncollectedPowerups: room.powerups
+    });
+
+    // Decrement powerup life
+    for (const key of ["shipOne", "shipTwo"]) {
+      const shipPowerups = room.state.powerups[key];
+      for (const type in shipPowerups) {
+        const powerup = shipPowerups[type];
+        if (!powerup) continue;
+
+        powerup.turnsLeft--;
+        if (powerup.turnsLeft <= 0) {
+          shipPowerups[type] = null;
+          io.to(roomId).emit("powerUpExpired", {playerKey: key, type: powerup.type});
+        }
+      }
+    }
+
+    // Progress Turn
+    room.state.turn = (room.state.turn + 1) % 2;
+    room.state.turnCount++;
+
+    // Refuel ship if turn
+    if (room.state.turn === 0) room.state.fuel.shipOne = 100;
+    else room.state.fuel.shipTwo = 100;
+    
+    // Send turn change with asteroid state
+    io.to(roomId).emit("turnChange", {
+      currentTurn: room.state.turn, 
+      turnCount: room.state.turnCount,
+      asteroidState: room.asteroidField.getState(),
+      fuel: room.state.fuel
+    });
+
+    if (Math.floor(Math.random() * 5) + 1 === 5) {
+      const type = "shield";
+      const x = Math.floor(Math.random() * 700) + 50;
+      const y = Math.floor(Math.random() * 500) + 50;
+      const id = crypto.randomUUID();
+
+      room.powerups.push({id, type, x, y});
+      io.to(roomId).emit("powerUpSpawn", {id, type, x, y});
+    }
+
+    if (room.state.turnCount == 21) {
+      let winningShip = null;
+      let winnerId = null;
+      let winnerScore = null;
+      let loserId = null;
+      let loserScore = null;
+      if (room.state.scores.shipOne > room.state.scores.shipTwo) {
+        winningShip = room.usernames[0];
+        winnerId = room.userIds[0];
+        winnerScore = room.state.scores.shipOne;
+        loserId = room.userIds[1];
+        loserScore = room.state.scores.shipTwo;
+      }
+      else if (room.state.scores.shipOne < room.state.scores.shipTwo) {
+        winningShip = room.usernames[1];
+        winnerId = room.userIds[1];
+        winnerScore = room.state.scores.shipTwo;
+        loserId = room.userIds[0];
+        loserScore = room.state.scores.shipOne;
+      }
+      else {
+        winningShip = "Tie";
+      }
+
+      if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
+        const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
+        const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
+
+        try {
+          await saveReplay(gameId, room.replay);
+        } catch (err) {
+          console.error("Failed to save replay: ", err);
+        }
+      }
+
+      io.to(roomId).emit("gameOver", {winner: winningShip, players: room.usernames, scores: room.state.scores});
+    }
+}
+
 function generateRoomId(length = 6) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let id = '';
@@ -506,16 +565,20 @@ function findOrCreateRoom() {
       turn: 0, 
       turnCount: 1, 
       scores: {shipOne: 0, shipTwo: 0},
-      fuel: {shipOne: 100, shipTwo: 100}
+      fuel: {shipOne: 100, shipTwo: 100},
+      powerups: { shipOne: {}, shipTwo: {} }
     }, 
     asteroidSeed,
     asteroidField: new AsteroidField(asteroidSeed, { x: 800, y: 600 }),
     replay: {
       turns: []
-    }
+    },
+    powerups: []
   };
   return newId;
 }
+
+
 
 // Server-wide asteroid tick
 const ASTEROID_TICK_MS = 50; // send updates every 100ms

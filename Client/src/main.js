@@ -5,6 +5,7 @@ import { AsteroidField } from "./asteroidField.js";
 import { Ship, collision } from "./ship.js";
 import RegisterScene from './register.js';
 import GameOverScene from './gameOver.js';
+import { PowerUp } from './powerup.js';
 import WelcomeScene from './welcome.js';
 import InputHandler from './input.js';
 import MainMenuScene from './menu.js';
@@ -17,6 +18,7 @@ import HighScoresScene from './highScores.js';
 
 
 (async () => {
+    // Game constants
     const tickRate = 30;
     const tickInterval = 1000 / tickRate;
     const baseWidth = 800;
@@ -31,6 +33,7 @@ import HighScoresScene from './highScores.js';
     const network = new Network(serverUrl);
     const backBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0xaa4444);
     const backButton = new Button(backBg);
+    const powerups = [];
     let asteroidField;
     let accumulator = 0;
     let inputPlayerIndex;
@@ -57,6 +60,7 @@ import HighScoresScene from './highScores.js';
     const welcomeScene = new WelcomeScene(handleLoginChoice, baseWidth, baseHeight);
     gameWorld.addChild(welcomeScene.view);
 
+    // Pre: Choice is the option that the user selects on the welcome screen
     function handleLoginChoice(choice) {
         gameWorld.removeChild(welcomeScene.view);
 
@@ -77,6 +81,8 @@ import HighScoresScene from './highScores.js';
         }
     }
 
+    // Pre: None
+    // Post: Game is resized to browser window size
     function resizeGame() {
         // Get size of browser window
         const screenWidth = window.innerWidth;
@@ -96,6 +102,8 @@ import HighScoresScene from './highScores.js';
         gameWorld.y = (screenHeight - baseHeight * scale) / 2;
     }
     
+    // Pre: info is the registration information stored in an object, res is the object to display results of registration
+    // Post: sends registration info to server and displays results to user
     async function submitRegistration(info, res) {
         // If password is less than 5 characters, do not allow registration
         if (info.password.length  < 5) {
@@ -117,7 +125,7 @@ import HighScoresScene from './highScores.js';
         }
 
         // Send registration info to the server
-    const response = await fetch(`${serverUrl}/register`, {
+        const response = await fetch(`${serverUrl}/register`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({username: info.username, password: info.password})
@@ -135,6 +143,8 @@ import HighScoresScene from './highScores.js';
         res.style.fill = "#00FF00";
     }
     
+    // Pre: info is the login infornation stored in an object, res is the object to display results of login
+    // Post: sends login info to server and displays results to user
     async function submitLogin(info, res) {
         // Send login information to the server
     const response = await fetch(`${serverUrl}/login`, {
@@ -158,6 +168,8 @@ import HighScoresScene from './highScores.js';
         mainMenu(info.username);
     }
 
+    // Pre: None
+    // Post: Clears the screen
     function clearScreen() {
         // For every element of the gameworld, if it's not the border then remove it
         for (let child of gameWorld.children.slice()) {
@@ -165,33 +177,39 @@ import HighScoresScene from './highScores.js';
         }
     }
     
-    // Go back to the welcome screen
+    // Pre: None
+    // Post: 
     function backToWelcome() {
         clearScreen()
         gameWorld.addChild(welcomeScene.view);
     }
     
-    // Create main menu and display
+    // Pre: None
+    // Post: Create main menu and add to display
     function mainMenu() {
         clearScreen();
         const mainMenu = new MainMenuScene(playGame, playerHistory, highScores, instructions, user, baseWidth, baseHeight);
         gameWorld.addChild(mainMenu.view);
     }
 
-    // Display the instructions for the game
+    // Pre: None
+    // Post: Display the instructions for the game
     function instructions() {
         clearScreen();
         const instructions = new InstructionsScene(mainMenu, baseWidth, baseHeight);
         gameWorld.addChild(instructions.view);
     }
 
-    // Display the previous games of player
+    // Pre: None
+    // Post: Display the previous games of player
     function playerHistory() {
         clearScreen();
         const playerHistory = new PlayerHistoryScene(userId, (gameId) => replayGame(gameId), mainMenu, baseWidth, baseHeight);
         gameWorld.addChild(playerHistory.view);
     }
 
+    // Pre: gameId is the id of the game the user selects to replay
+    // Post: A replay of the game is created and displayed
     function replayGame(gameId) {
         console.log(gameId);
         clearScreen();
@@ -199,7 +217,8 @@ import HighScoresScene from './highScores.js';
         gameWorld.addChild(replayScene.view);
     }
 
-    // Display the leaderboard of high scores
+    // Pre: None
+    // Post: Display the leaderboard of high scores of all time
     async function highScores() {
         clearScreen()
         const highScores = new HighScoresScene(mainMenu, baseWidth, baseHeight);
@@ -207,7 +226,8 @@ import HighScoresScene from './highScores.js';
         await highScores.loadScores();
     }
     
-    // Load playing screen
+    // Pre: None
+    //Post: Load playing screen and tell server to join room
     function playGame() {
         clearScreen();
 
@@ -234,8 +254,7 @@ import HighScoresScene from './highScores.js';
         network.joinRoom(user, userId);
     }
 
-
-    // Recieving information about the room the player joined
+    // Server broadcasts to client information about the room joined
     network.onRoomJoined(async ({ roomId: id, asteroidSeed, playerIndex, state }) => {
         // Set room ID and the player's turn index
         roomId = id;
@@ -250,7 +269,7 @@ import HighScoresScene from './highScores.js';
         }
     });
 
-    // When the game starts
+    // Server broadcats to client that the game starts
     network.onGameStart(async ({ startingTurn }) => {
         currentTurn = startingTurn;
         gameWorld.removeChild(backButton.view);
@@ -259,15 +278,21 @@ import HighScoresScene from './highScores.js';
 
     })
 
+    // Pre: User has started the game
+    // Post: Communicate with server about game updates
     async function startGame() {
+        // Constatnt variables
         let turnCount = 1;
         const turnText = new Text({text: "Turn: 1", style: {fontSize: 24, fill: "#ffffff"}});
-        const shipOne = new Ship(await Assets.load('assets/shipNone.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0, network, roomId);
-        const shipTwo = new Ship(await Assets.load('assets/shipNone.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1, network, roomId);
+        const shipOne = new Ship(await Assets.load('assets/ship.png'), 40, baseHeight / 2, Math.PI / 2, 2, { width: baseWidth, height: baseHeight }, margin, 0, network, roomId);
+        const shipTwo = new Ship(await Assets.load('assets/ship.png'), baseWidth - 40, baseHeight / 2, (Math.PI / 2) * 3, 2, { width: baseWidth, height: baseHeight }, margin, 1, network, roomId);
         const shipOneScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         const shipTwoScoreText = new Text({text: "Score: 0", style: {fontSize: 24, fill: "#ffffff"}});
         const shipOneFuelText = new Text({text: "Fuel: 100", style: {fontSize: 20, fill: "#FFFF00"}});
         const shipTwoFuelText = new Text({text: "Fuel: 100", style: {fontSize: 20, fill: "#FFFF00"}});
+        const shipOnePowerUpText = new Text({text: "", style: {fontSize: 18, fill: "#008FFF"}});
+        const shipTwoPowerUpText = new Text({text: "", style: {fontSize: 18, fill: "#008FFF"}});
+        // Move elements displayed to user to their respective places
         shipOneScoreText.x = 10;
         shipOneScoreText.y = 10;
         shipTwoScoreText.x = baseWidth - 110;
@@ -278,6 +303,11 @@ import HighScoresScene from './highScores.js';
         shipOneFuelText.y = 40;
         shipTwoFuelText.x = baseWidth - 110;
         shipTwoFuelText.y = 40;
+        shipOnePowerUpText.x = 115;
+        shipOnePowerUpText.y = 15;
+        shipTwoPowerUpText.x = baseWidth - 255;
+        shipTwoPowerUpText.y = 15;
+        // Display elements to user
         gameWorld.addChild(shipOne.sprite);
         gameWorld.addChild(shipTwo.sprite);
         gameWorld.addChild(shipOneScoreText);
@@ -285,20 +315,24 @@ import HighScoresScene from './highScores.js';
         gameWorld.addChild(turnText);
         gameWorld.addChild(shipOneFuelText);
         gameWorld.addChild(shipTwoFuelText);
+        gameWorld.addChild(shipOnePowerUpText);
+        gameWorld.addChild(shipTwoPowerUpText);
         
         inputHandler = new InputHandler(shipOne, shipTwo, () => baseWidth, baseHeight, network);
         inputHandler.setPlayerIndex(inputPlayerIndex);
         inputHandler.canMove = (inputPlayerIndex === currentTurn);
         inputHandler.roomId = roomId;
 
-        
-        function checkBulletCollisions(attacker, target, container) {
+        // Pre: attacker is the ship checked to see if their bullet has hit the other ship, target is the ship checked to see if they were hit with bullet
+        // Post: If the bullet hits the ship, the owner of the bullet communicates that information to the server
+        function checkBulletCollisions(attacker, target) {
             for (let i = attacker.bullets.length - 1; i >= 0 ; i--) {
+                console.log("Checking bullet collision");
                 const bullet = attacker.bullets[i];
                 if (!bullet.alive) continue;
                 if (collision(target, bullet)) {
                     bullet.alive = false;
-                    bullet.destroyBullet(container);
+                    bullet.destroyBullet(gameWorld);
                     attacker.bullets.splice(i, 1);
 
                     if (attacker === (inputPlayerIndex === 0 ? shipOne : shipTwo)) {
@@ -309,11 +343,13 @@ import HighScoresScene from './highScores.js';
             }
         }
 
+        // The server broadcasts that the turn has changed
         network.onTurnChange(({currentTurn: turnId, turnCount: turn, asteroidState, fuel}) => {
+            console.log("recieved turn change", turnId, turn);
             currentTurn = turnId;
             inputHandler.canMove = (inputPlayerIndex === currentTurn);
             turnCount = turn;
-            turnText.text = `Turn: ${turnCount}`;
+            turnText.text = `Turn: ${turn}`;
 
             shipOne.fuel = fuel.shipOne;
             shipTwo.fuel = fuel.shipTwo;
@@ -332,16 +368,18 @@ import HighScoresScene from './highScores.js';
             }
         });
 
+        // Server broadcasts to client the updated positions of asteroids
         network.onAsteroidUpdate(({ asteroidState }) => {
             asteroidField.syncFromServer(asteroidState, gameWorld);
         });
 
-
+        // Server broadcasts updated player scores
         network.onScoreUpdated((scores) => {
             shipOneScoreText.text = `Score: ${scores.shipOne}`;
             shipTwoScoreText.text = `Score: ${scores.shipTwo}`;
         });
 
+        // Server broadcasts updated player position
         network.onPlayerMoved(({ id, pos }) => {
             if (id === network.socket.id) return;
             
@@ -352,6 +390,48 @@ import HighScoresScene from './highScores.js';
             otherShip.sprite.rotation = pos.rotation;
         });
 
+        // Server broadcasts that a powerup has spawned
+        network.onPowerUpSpawn(async ({ id, type, x, y }) => {
+            const texture = await Assets.load(`assets/${type}.png`);
+            const powerUp = new PowerUp(type, x, y, texture);
+            powerUp.id = id;
+            gameWorld.addChild(powerUp.sprite);
+            powerups.push(powerUp);
+        });
+
+        // Server broadcasts that a powerup has been removed
+        network.onPowerUpRemoved(({ id, playerIndex, type }) => {
+            const idx = powerups.findIndex(p => p.id === id);
+            if (idx >= 0) {
+                gameWorld.removeChild(powerups[idx].sprite);
+                powerups.splice(idx, 1);
+            }
+
+            if (playerIndex === inputPlayerIndex) {
+                const ship = inputPlayerIndex === 0 ? shipOne : shipTwo;
+                ship.addPowerUp(type);
+                console.log(ship.activePowerUps);
+            }
+
+            if (playerIndex === 0) {
+                shipOnePowerUpText.text = "Power Up: Shield";
+            }
+            else if (playerIndex === 1) {
+                shipTwoPowerUpText.text = "Power Up: Shield";
+            }
+        });
+
+        // Server broadcasts that a powerup has expired
+        network.onPowerUpExpired(({playerKey, type}) => {
+            if (playerKey === "shipOne") {
+                shipOnePowerUpText.text = "";
+            }
+            else if (playerKey === "shipTwo") {
+                shipTwoPowerUpText.text = "";
+            }
+        })
+
+        // Server broadcasts updated fuel levels
         network.onFuelUpdated((fuelState) => {
             shipOneFuelText.text = `Fuel: ${Math.round(fuelState.shipOne)}`;
             shipTwoFuelText.text = `Fuel: ${Math.round(fuelState.shipTwo)}`;
@@ -364,16 +444,30 @@ import HighScoresScene from './highScores.js';
             }
         });
 
-        network.onBulletFired((data) => {
-            if (data.owner === network.socket.id) return;
+        // Server broadcasts that a bullet has been destroyed, removed from game world
+        network.onBulletDestroyed(({ownerIndex, bulletIndex}) => {
+            console.log("recieved bullet destroyed");
+            const bullets = ownerIndex === 0 ? shipOne.bullets : shipTwo.bullets;
+            if (bullets[bulletIndex]) {
+                bullets[bulletIndex].destroyBullet(gameWorld);
+                bullets.splice(bulletIndex, 1);
+            }
+        });
 
-            const ship = (inputPlayerIndex === 0) ? shipTwo : shipOne;
-            const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld, inputPlayerIndex);
+        // Server broadcasts that a bullet has been fired
+        network.onBulletFired((data) => {
+            if (data.owner === inputPlayerIndex) return;
+
+            const ship = (data.owner === 0) ? shipOne : shipTwo;
+            const bullet = ship.createBullet(data.x, data.y, data.rotation, gameWorld, data.owner);
+            bullet.owner = data.owner;
+            console.log(bullet.owner, inputPlayerIndex);
             ship.bullets.push(bullet);
         });
 
+        // Server broadcasts that the game is over
         network.onGameOver(async ({winner, players, scores}) => {
-            console.log("GAMER OVER");
+            console.log("GAME OVER");
             ticker.stop()
             inputHandler.canMove = false;
 
@@ -382,9 +476,6 @@ import HighScoresScene from './highScores.js';
                 const response = await fetch(`${serverUrl}/personalbest?username=${user}`);
                 const data = await response.json();
                 gameOver.setPersonalBest(data.personalBest);
-
-                console.log(response);
-                // gameOver.setPersonalBest();
             }
 
             gameWorld.addChild(gameOver.view);
@@ -392,6 +483,7 @@ import HighScoresScene from './highScores.js';
 
     ticker.start();
 
+    // Game ticker, constant loop
     ticker.add(() => {
         accumulator += ticker.deltaMS;
 
@@ -413,19 +505,13 @@ import HighScoresScene from './highScores.js';
             const allBullets = [...shipOne.bullets, ...shipTwo.bullets];
             asteroidField.checkBulletCollisions(allBullets, (bullet, asteroid, asteroidIndex) => {
                 // Only process if this is the local player's bullet
-                if (bullet.owner === inputPlayerIndex) {
-                    // Destroy bullet locally
-                    bullet.destroyBullet(gameWorld);
-                    const ownerShip = bullet.owner === 0 ? shipOne : shipTwo;
-                    const bulletIdx = ownerShip.bullets.indexOf(bullet);
-                    if (bulletIdx > -1) {
-                        ownerShip.bullets.splice(bulletIdx, 1);
-                    }
-                    
-                    // Remove asteroid locally then send to server
-                    asteroidField.removeAsteroid(asteroidIndex, gameWorld);
-                    network.sendAsteroidHit(roomId, asteroid.id);
-                }
+                console.log(bullet.owner, "------", inputPlayerIndex);
+                const ownerShip = bullet.owner === 0 ? shipOne : shipTwo;
+                const bulletIndex = ownerShip.bullets.indexOf(bullet);
+
+                network.sendAsteroidHit(roomId, asteroid.id, bullet.owner, bulletIndex);
+                console.log(bullet);
+                console.log("sending asteroid hit ", bullet.owner);
             });
 
             // Ship vs Asteroid collisions
@@ -437,6 +523,19 @@ import HighScoresScene from './highScores.js';
                     shipAsteroidHits.add(hitKey);
                     network.sendAsteroidDamage(roomId, asteroid.id);
                 }
+            });
+
+            // Power up collision
+            powerups.forEach((p, i) => {
+                if (!p.collected) {
+                    const colliding = collision(inputPlayerIndex === 0 ? shipOne : shipTwo, p.sprite);
+
+                    if (colliding) {
+                        p.collected = true;
+                        network.sendPowerUpCollected(roomId, p.id);
+                    }
+                }
+
             });
 
             accumulator -= tickInterval;

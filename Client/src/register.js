@@ -6,12 +6,14 @@ export default class RegisterScene {
         this.container = new Container();
         const column = new Container();
 
+        // Title text
         const title = new Text({text: "Create Account", style: {fontSize: 42, fill: "#ffffff", align: "center"}});
         title.anchor.set(0.5);
         title.x = 0;
         title.y = -200;
         column.addChild(title);
 
+        // Text box where user can input username
         const usernameLabel = new Text({text: "Username:", style: {fontSize: 20, fill: "#ffffff"}});
         usernameLabel.x = -100;
         usernameLabel.y = -100;
@@ -22,6 +24,7 @@ export default class RegisterScene {
         usernameInput.y = -100;
         column.addChild(usernameInput);
 
+        // Text box where user can input password
         const passwordLabel = new Text({text: "Password:", style: {fontSize: 20, fill: "#ffffff"}});
         passwordLabel.x = -100;
         passwordLabel.y = -30;
@@ -32,11 +35,13 @@ export default class RegisterScene {
         passwordInput.y = -30;
         column.addChild(passwordInput);
 
+        // Text that displays status of registration
         this.errorText = new Text({text: "", style: {fontSize: 18}});
         this.errorText.x = -100;
         this.errorText.y = -130;
         column.addChild(this.errorText);
 
+        // Button to submit registration information
         const submitButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
         const submitButton = new Button(submitButtonBg);
         submitButton.onPress.connect(() => {
@@ -64,6 +69,7 @@ export default class RegisterScene {
         submitButton.view.y = 60;
         column.addChild(submitButton.view);
 
+        // Button to bring user back to welcome screen
         const backBg = new Graphics().roundRect(0, 0, 200, 40, 10).fill(0xaa4444);
         const backButton = new Button(backBg);
         backButton.onPress.connect(onBack);

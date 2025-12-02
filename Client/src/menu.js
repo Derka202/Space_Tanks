@@ -6,18 +6,22 @@ export default class MainMenuScene {
         this.container = new Container();
         const column = new Container();
 
+        // Title text
         const title = new Text({text: "Space Tanks", style: {fontSize: 48, fill: "#FFFFFF", align: "center"}});
         title.anchor.set(0.5);
         title.x = 0;
         title.y = -200;
         column.addChild(title);
 
+        // Text that displays the username of user
         const userText = new Text({text: `Signed in as: ${username}`, style: {fontSize: 18, fill: "#FFFF00", align: "center"}});
         userText.anchor.set(0.5);
         userText.x = 0;
         userText.y = -150;
         column.addChild(userText);
 
+        // Pre: label is the text on the button, y is the y cordinate of the created button, callback is the function passed through to call when the button is pressed
+        // Post: A button is created, positioned, and given functionality
         const createButton = (label, y, callback,) => {
             const bg = new Graphics().roundRect(0, 0, 250, 50, 10).fill(0x4466aa);
             const button = new Button(bg);

@@ -53,8 +53,9 @@ export default class Network {
         this.socket.emit("bulletHit");
     }
 
-    sendAsteroidHit(roomId, asteroidId) {
-        this.socket.emit('asteroidHit', { roomId, asteroidId });
+    sendAsteroidHit(roomId, asteroidId, bulletOwnerIndex, bulletIndex) {
+        console.log(roomId, asteroidId, bulletOwnerIndex, bulletIndex);
+        this.socket.emit("asteroidHit", { roomId, asteroidId, bulletOwnerIndex, bulletIndex });
     }
 
     sendAsteroidDamage(roomId, asteroidId) {
@@ -90,5 +91,25 @@ export default class Network {
 
     onUserIds(callback) {
         this.socket.once("userIds", (ids) => callback(ids || []));
+    }
+
+    onPowerUpSpawn(callback) {
+        this.socket.on("powerUpSpawn", callback);
+    }
+
+    sendPowerUpCollected(roomId, id) {
+        this.socket.emit("powerUpCollected", {roomId, id});
+    }
+
+    onPowerUpRemoved(callback) {
+        this.socket.on("powerUpRemoved", callback);
+    }
+
+    onPowerUpExpired(callback) {
+        this.socket.on("powerUpExpired", callback);
+    }
+
+    onBulletDestroyed(callback) {
+        this.socket.on("bulletDestroyed", callback);
     }
 }

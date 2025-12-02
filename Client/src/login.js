@@ -6,21 +6,23 @@ export default class LoginScene {
         this.container = new Container();
         const column = new Container();
 
+        // Title text
         const title = new Text({text: "Login", style: {fontSize: 42, fill: "#FFFFFF", align: "center"}});
         title.anchor.set(0.5);
         title.y = -200;
         column.addChild(title);
 
+        // Text box where user can input username
         const usernameLabel = new Text({text: "Username:", style: {fontSize: 20, fill: "#ffffff"}});
         usernameLabel.x = -100;
         usernameLabel.y = -100;
         column.addChild(usernameLabel);
-        const usernameInput = new Input({bg: new Graphics().roundRect(0, 0, 250, 40, 6).fill(0x222222),
-            textStyle: {fill: "#ffffff", fontSize: 18}, placeholder: "Enter username"});
+        const usernameInput = new Input({bg: new Graphics().roundRect(0, 0, 250, 40, 6).fill(0x222222), textStyle: {fill: "#ffffff", fontSize: 18}, placeholder: "Enter username"});
         usernameInput.x = 50;
         usernameInput.y = -100;
         column.addChild(usernameInput);
 
+        // Text box where user can input password
         const passwordLabel = new Text({text: "Password:", style: {fontSize: 20, fill: "#ffffff"}});
         passwordLabel.x = -100;
         passwordLabel.y = -30;
@@ -31,11 +33,13 @@ export default class LoginScene {
         passwordInput.y = -30;
         column.addChild(passwordInput);
 
+        // Text that displays any errors from logging in
         this.messageText = new Text({text: "", style: {fontSize: 18}});
         this.messageText.x = -100;
         this.messageText.y = -130;
         column.addChild(this.messageText);
 
+        // Button to submit login information
         const submitButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
         const submitButton = new Button(submitButtonBg);
         submitButton.onPress.connect(() => {
@@ -63,6 +67,7 @@ export default class LoginScene {
         submitButton.view.y = 60;
         column.addChild(submitButton.view);
 
+        // Button to bring user back to welcome screen
         const backBg = new Graphics().roundRect(0, 0, 200, 40, 10).fill(0xaa4444);
         const backButton = new Button(backBg);
         backButton.onPress.connect(onBack);

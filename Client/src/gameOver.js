@@ -6,33 +6,39 @@ export default class GameOverScene {
         this.container = new Container();
         const column = new Container();
 
+        // Dim game in background
         const overlay = new Graphics().rect(0, 0, baseWidth, baseHeight).fill({color: "#000000", alpha: 0.6});
         column.addChild(overlay);
         
+        // Game over text
         const gameOverText = new Text({text: "GAME OVER", style: {fontSize: 64, fill: "#ff0000", fontWeight: "bold", align: "center"}});
         gameOverText.anchor.set(0.5);
         gameOverText.x = baseWidth / 2
         gameOverText.y = baseHeight / 2 - 40;
         column.addChild(gameOverText);
         
+        // Text that displays final scores
         const scoreText = new Text({text: `Final Scores:\n${players[0]}: ${scores.shipOne}\n${players[1]}: ${scores.shipTwo}`, style: {fontSize: 28, fill: "#ffffff", align: "center"}});
         scoreText.anchor.set(0.5);
         scoreText.x = baseWidth / 2;
         scoreText.y = baseHeight / 2 + 50;
         column.addChild(scoreText);
         
+        // Text that displays winner of game
         const winnerText = new Text({text: `Winner: ${winner}`, style: {fontSize: 32, fill: "#ffff00"}});
         winnerText.anchor.set(0.5);
         winnerText.x = baseWidth / 2;
         winnerText.y = baseHeight / 2 + 130;
         column.addChild(winnerText);
 
+        // Text that displays personal best of logged in users
         this.personalBestText = new Text({text: "", style: {fontSize: 18, fill: "#FFFFFF"}});
         this.personalBestText.anchor.set(0.5);
         this.personalBestText.x = baseWidth / 2;
         this.personalBestText.y = baseHeight / 2 + 160;
         column.addChild(this.personalBestText);
         
+        // Button that returns player to main menu
         const menuButtonBg = new Graphics().roundRect(0, 0, 200, 50, 10).fill(0x44aa66);
         const menuButton = new Button(menuButtonBg);
         menuButton.onPress.connect(onMenu);
@@ -48,6 +54,8 @@ export default class GameOverScene {
         this.container.addChild(column);
     }
 
+    // Pre: score is the high score of a player
+    // Post: update personalBestText to display players high score
     setPersonalBest(score) {
         this.personalBestText.text = "Personal Best: " + score;
     }

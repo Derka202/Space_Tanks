@@ -14,6 +14,8 @@ export default class PlayerHistoryScene {
         this.loadGames();
     }
 
+    // Pre: None
+    // Post: Menu UI is created
     initUI() {
         const column = new Container();
 
@@ -41,10 +43,13 @@ export default class PlayerHistoryScene {
         this.container.addChild(column);
     }
 
+    // Pre: None
+    // Post: Data of previous games played by user is fetched from server
     async loadGames() {
         console.log("loading games");
         try{
-            const res = await fetch(`http://localhost:3000/getusergames?userid=${this.userId}`);
+            const serverUrl = (import.meta.env.VITE_SERVER_URL) || "http://localhost:3000";
+            const res = await fetch(`${serverUrl}/getusergames?userid=${this.userId}`);
             console.log(res);
             const data = await res.json();
             console.log(data);

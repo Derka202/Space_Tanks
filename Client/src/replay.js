@@ -5,6 +5,7 @@ import { Ship } from "./ship.js";
 
 export default class ReplayScene {
     constructor(gameId, backToHistory, baseWidth, baseHeight) {
+        const serverUrl = (import.meta.env.VITE_SERVER_URL) || "http://localhost:3000";
         this.container = new Container();
         this.gameId = gameId;
         this.backToHistory = backToHistory;
@@ -18,7 +19,7 @@ export default class ReplayScene {
 
     //initialize UI elements for game replay
     initUI() {
-        // Replay Game Title
+        // Replay game title
         const title = new Text({text: `Replaying Game ${this.gameId}`, style: {fill: "#FFFFFF", fontSize: 30}});
         title.anchor.set(0.5);
         title.x = this.baseWidth / 2;
@@ -73,13 +74,16 @@ export default class ReplayScene {
         this.container.addChild(nextButton.view);
     }
 
-    // Get each frame of gameplay
+    // Pre: None
+    // Post: Get each frame of gameplay
     async loadReplayData() {
         try {
             // Get data from server and store in this.frames
-            const res = await fetch(`http://localhost:3000/getgamedata?gameid=${this.gameId}`);
+            const serverUrl = (import.meta.env.VITE_SERVER_URL) || "http://localhost:3000";
+            const res = await fetch(`${serverUrl}/getgamedata?gameid=${this.gameId}`);
             const data = await res.json();
             this.frames = data.replayData.turns;
+            console.log(data);
 
             // Setup the game replay
             await this.setupScene();
@@ -90,7 +94,8 @@ export default class ReplayScene {
         }
     }
 
-    // Setup the game replay
+    // Pre: None
+    // Post: Setup the game replay
     async setupScene() {
         // Create asteroid field and initalize
         this.asteroidField = new AsteroidField(Math.random(), {
@@ -99,8 +104,8 @@ export default class ReplayScene {
         });
         await this.asteroidField.init(this.container);
 
-        const shipOneTexture = await Assets.load("assets/shipNone.png");
-        const shipTwoTexture = await Assets.load("assets/shipNone.png");
+        const shipOneTexture = await Assets.load("assets/ship.png");
+        const shipTwoTexture = await Assets.load("assets/ship.png");
 
         // Create player sprites
         this.shipOne = new Ship(shipOneTexture, 40, this.baseHeight / 2, Math.PI / 2, 2, { width: this.baseWidth, height: this.baseHeight }, 40);
@@ -135,7 +140,8 @@ export default class ReplayScene {
         this.container.addChild(this.shipTwoFuelText);
     }
 
-    // View the next frame if there is one
+    // Pre: None
+    // Post: View the next frame if there is one
     nextFrame() {
         if (this.frameIndex < this.frames.length - 1) {
             this.frameIndex++;
@@ -143,7 +149,8 @@ export default class ReplayScene {
         }
     }
 
-    // View the previous frame if there is one
+    // Pre: None
+    // Post: View the previous frame if there is one
     prevFrame() {
         if (this.frameIndex > 0) {
             this.frameIndex--;
@@ -151,7 +158,8 @@ export default class ReplayScene {
         }
     }
 
-    // Show the frame at the index
+    // Pre: index is the index of the frame being displayed
+    // Post: Show the frame at the index
     showFrame(index) {
         const frame = this.frames[index];
 

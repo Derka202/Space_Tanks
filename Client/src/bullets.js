@@ -1,6 +1,6 @@
 import { Graphics } from "pixi.js";
 
-export function createBullet(x, y, rotation, playerIndex) {
+export function createBullet(x, y, rotation, owner) {
     const bullet = new Graphics()
         .circle(0, 0, 4)
         .fill(0xffffff);
@@ -9,7 +9,7 @@ export function createBullet(x, y, rotation, playerIndex) {
     bullet.y = y;
     bullet.rotation = rotation;
     bullet.speed = 6; // pixels per tick
-    bullet.owner = playerIndex;
+    bullet.owner = owner;
     bullet.alive = true;
 
     bullet.destroyBullet = (container) => {

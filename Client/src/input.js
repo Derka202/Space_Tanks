@@ -10,12 +10,14 @@ export default class InputHandler {
         this.baseHeight = baseHeight;
         this.canMove = false;
 
+        // When a key is pressed down, add to this.keys as true
         window.addEventListener('keydown', (e) => {
             if (validInput.includes(e.key.toLowerCase())) {
                 this.keys[e.key.toLowerCase()] = true;
             }
         });
 
+        // When a pressed key is released, set key in this.keys to false
         window.addEventListener('keyup', (e) => {
             if (validInput.includes(e.key.toLowerCase())) {
                 this.keys[e.key.toLowerCase()] = false;
@@ -26,6 +28,8 @@ export default class InputHandler {
         });
     }
 
+    // Pre: User is giving player input
+    // Post: Update ship according to player input
     update() {
         if (!this.canMove) return;
         if (this.keysDiv) this.keysDiv.innerHTML = JSON.stringify(this.keys);
@@ -55,10 +59,6 @@ export default class InputHandler {
             this.keys[" "] = false;
         }
 
-    }
-
-    isMoving() {
-        return Object.values(this.keys).some(v => v);
     }
 
     setPlayerIndex(index) {

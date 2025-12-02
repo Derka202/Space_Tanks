@@ -21,8 +21,41 @@ export class Ship {
         this.bullets = [];
         this.maxFuel = 100;
         this.fuel = this.maxFuel;
+        this.activePowerUps = {};
     }
 
+    // Pre: type is the type of the powerup
+    // Post: the power up is set to true in this.activePowerUps
+    addPowerUp(type) {
+        this.activePowerUps[type] = true;
+    }
+
+    // Pre: type is the type of the powerup
+    // Post: checks if user has an active powerup
+    hasPowerUp(type) {
+        return this.activePowerUps[type] && this.activePowerUps[type].turnsLeft > 0;
+    }
+
+    // Pre: None
+    // Post: Deletes powerup from this.activePowerUps
+    removePowerUp(type) {
+        delete this.activePowerUps[type];
+    }
+
+    // Pre: amount is the amount of fuel used
+    // Post: if the user has a shield, remove powerup and return false. Otherwise, return true.
+    takeDamage(amount) {
+        if (this.hasPowerUp("shield")) {
+            console.log("Shield absorbed damage!");
+            this.removePowerUp("shield"); // consume shield
+            return false;
+        }
+        this.fuel = Math.max(0, this.fuel - amount);
+        return true;
+    }
+
+    // Pre: dx is the desired x coordinate, dy is the desired y coordinate, otherShip is the other ship in the game
+    // Post: ship is moved to updated poisition, if within 20 pixels of other ship don't move
     move(dx, dy, otherShip) {
         if (this.fuel <= 0) return;
 
@@ -53,22 +86,29 @@ export class Ship {
     this.useFuel(0.5, this.network, this.roomId);
     }
 
+    // Pre: dir is the direction the user is rotating
+    // Post: user sprite is rotated
     rotate(dir) {
         this.sprite.rotation += dir * this.rotationSpeed;
     }
 
+    // Pre: container is the game world
+    // Post: A bullet is created and fired
     fire(container) {
         const bullet = createBullet(
             this.sprite.x,
             this.sprite.y,
-            this.sprite.rotation
+            this.sprite.rotation,
+            this.playerIndex
         );
+        bullet.owner = this.playerIndex;
         this.bullets.push(bullet);
         container.addChild(bullet);
-
         return bullet;
     }
 
+    // Pre: container is the game world, bounds is the bounds that the bullet is allowed to travel within, network is the network object, roomId is the id of the room, inputPlayerIndex is the player who fired the bullet
+    // Post: The position of the bullet is updated and broadcasted to the server
     updateBullets(container, bounds, network, roomId, inputPlayerIndex) {
         this.bullets.forEach((bullet, i) => {
             bullet.x += Math.cos(bullet.rotation - (Math.PI / 2)) * bullet.speed;
@@ -87,27 +127,36 @@ export class Ship {
         });
     }
 
+    // Pre: None
+    // Post: returns position of user sprite
     getPosition() {
     return { x: this.sprite.x, y: this.sprite.y, rotation: this.sprite.rotation };
     }
 
+    // x and y are the coordinates of the bullet, rotation is the rotation at which the bullet was fired, container is the game world, inputPlayerIndex is the player who fired the bullet
+    // Post: A bullet is created and returned
     createBullet(x, y, rotation, container, inputPlayerIndex) {
         const bullet = createBullet(x, y, rotation, inputPlayerIndex);
+        bullet.owner = inputPlayerIndex;
         container.addChild(bullet);
         return bullet;
     }
 
+    // Pre: amount is the amount of fuel being used, network is the network object to communicate with server, roomId is the id of the room
+    // Post: Broadcasts to server that fuel is used
     useFuel(amount, network, roomId) {
-        // this.fuel  = Math.max(0, this.fuel - amount);
         network.sendFuelUsed(roomId, this.playerIndex, amount);
-        console.log("Current fuel level: ", this.fuel);
     }
 
+    // Pre: None
+    // Post: this.fuel is replenished
     refillFuel() {
         this.fuel = this.maxFuel
     }
 }
 
+// Pre: a and b are the objects checked to see if collision has occured between them
+// Post: returns true of false depending on if collision is occuring
 export function collision(a, b) {
     const dx = (a.sprite ? a.sprite.x : a.x) - (b.sprite ? b.sprite.x : b.x);
     const dy = (a.sprite ? a.sprite.y : a.y) - (b.sprite ? b.sprite.y : b.y);
