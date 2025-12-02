@@ -1,88 +1,17 @@
 import { createUser, isValidUser, getTopHighScores, createGameRecord, recordGameStats, saveReplay, getReplay, getUserGames, getUserHighScore } from "./database.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import seedrandom from "seedrandom";
+import { AsteroidField } from "./AsteroidField.js";
 
 const rooms = {};
 const socketRooms = {};
 
-// Server-side Asteroid class (deterministic physics)
-class Asteroid {
-    constructor(id, x, y, vx, vy, mass, radius) {
-        this.id = id;
-        this.x = x;
-        this.y = y;
-        this.vx = vx;
-        this.vy = vy;
-        this.mass = mass;
-        this.radius = radius;
-    }
-
-    update(deltaMS, bounds) {
-        const dt = deltaMS / 1000;
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
-
-        // Wrap around edges
-        if (this.x < 0) this.x += bounds.x;
-        if (this.x > bounds.x) this.x -= bounds.x;
-        if (this.y < 0) this.y += bounds.y;
-        if (this.y > bounds.y) this.y -= bounds.y;
-    }
-}
-
-// Server-side AsteroidField
-class AsteroidField {
-    constructor(seed, bounds) {
-        this.seed = seed;
-        this.bounds = bounds;
-        this.asteroids = [];
-        this.rng = seedrandom(seed);
-        this.init();
-    }
-
-    init() {
-        for (let i = 0; i < 10; i++) {
-            const x = this.rng() * this.bounds.x;
-            const y = this.rng() * this.bounds.y;
-            const vx = (this.rng() - 0.5) * 50;
-            const vy = (this.rng() - 0.5) * 50;
-            const mass = 20 + this.rng() * 30;
-            const radius = 20 + this.rng() * 30;
-
-            this.asteroids.push(new Asteroid(i, x, y, vx, vy, mass, radius));
-        }
-    }
-
-    updateAll(deltaMS) {
-        for (const a of this.asteroids) {
-            a.update(deltaMS, this.bounds);
-        }
-    }
-
-    getState() {
-        return this.asteroids.map(a => ({
-            id: a.id,
-            x: a.x,
-            y: a.y,
-            vx: a.vx,
-            vy: a.vy,
-            mass: a.mass,
-            radius: a.radius
-        }));
-    }
-
-    removeAsteroid(asteroidId) {
-        const index = this.asteroids.findIndex(a => a.id === asteroidId);
-        if (index !== -1) {
-            this.asteroids.splice(index, 1);
-            return true;
-        }
-        return false;
-    }
-}
-
+//Pre: req is incoming HTTP request: this callback handles the request and routes it manually
+//Post: processes HTTP requests for user registration, login, highscores, game records, and user games
 const httpServer = createServer(async (req, res) => {
+  
+  //Pre: req is incoming HTTP request
+  //Post: returns parsed JSON body of request
   function getJsonBody(req) {
     return new Promise((resolve, reject) => {
       let data = "";
@@ -97,6 +26,8 @@ const httpServer = createServer(async (req, res) => {
     });
   }
 
+  //Pre: res is HTTP response, obj is object to send as JSON, status is HTTP status code
+  //Post: sends JSON response with given status code
   function sendJson(res, obj, status = 200) {
     res.writeHead(status, {"Content-Type": "application/json"});
     res.end(JSON.stringify(obj));
@@ -202,6 +133,7 @@ const httpServer = createServer(async (req, res) => {
   }
 });
 
+
 const io = new Server(httpServer, {
   cors: {
     origin: "*",
@@ -210,6 +142,9 @@ const io = new Server(httpServer, {
   }
 });
 
+
+//Pre: socket is connected client socket
+//Post: handles all socket events for game rooms, player actions, and game state updates
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
@@ -424,6 +359,9 @@ io.on("connection", (socket) => {
   });
 });
 
+
+//Pre: none
+//Post: starts HTTP and WebSocket server on port 3000, ensures guest user exists
 httpServer.listen(3000, async () => {
   console.log("Server running on http://localhost:3000");
 
@@ -537,6 +475,109 @@ async function progressTurn(roomId) {
     }
 }
 
+async function progressTurn(roomId) {
+  const room = rooms[roomId];
+
+  // Update asteroids before turn change
+  room.asteroidField.updateAll(1000);
+
+  //Record Game Events
+    room.replay.turns.push({
+      turn: room.state.turnCount,
+      scores: { ...room.state.scores },
+      fuel: { ...room.state.fuel },
+      asteroids: room.asteroidField.getState(),
+      ships: {
+        shipOne: room.state.p1,
+        shipTwo: room.state.p2
+      },
+      activePowerups: { ...room.state.powerups },
+      uncollectedPowerups: room.powerups
+    });
+
+    // Decrement powerup life
+    for (const key of ["shipOne", "shipTwo"]) {
+      const shipPowerups = room.state.powerups[key];
+      for (const type in shipPowerups) {
+        const powerup = shipPowerups[type];
+        if (!powerup) continue;
+
+        powerup.turnsLeft--;
+        if (powerup.turnsLeft <= 0) {
+          shipPowerups[type] = null;
+          io.to(roomId).emit("powerUpExpired", {playerKey: key, type: powerup.type});
+        }
+      }
+    }
+
+    // Progress Turn
+    room.state.turn = (room.state.turn + 1) % 2;
+    room.state.turnCount++;
+
+    // Refuel ship if turn
+    if (room.state.turn === 0) room.state.fuel.shipOne = 100;
+    else room.state.fuel.shipTwo = 100;
+    
+    // Send turn change with asteroid state
+    io.to(roomId).emit("turnChange", {
+      currentTurn: room.state.turn, 
+      turnCount: room.state.turnCount,
+      asteroidState: room.asteroidField.getState(),
+      fuel: room.state.fuel
+    });
+
+    if (Math.floor(Math.random() * 5) + 1 === 5) {
+      const type = "shield";
+      const x = Math.floor(Math.random() * 700) + 50;
+      const y = Math.floor(Math.random() * 500) + 50;
+      const id = crypto.randomUUID();
+
+      room.powerups.push({id, type, x, y});
+      io.to(roomId).emit("powerUpSpawn", {id, type, x, y});
+    }
+
+    if (room.state.turnCount == 21) {
+      let winningShip = null;
+      let winnerId = null;
+      let winnerScore = null;
+      let loserId = null;
+      let loserScore = null;
+      if (room.state.scores.shipOne > room.state.scores.shipTwo) {
+        winningShip = room.usernames[0];
+        winnerId = room.userIds[0];
+        winnerScore = room.state.scores.shipOne;
+        loserId = room.userIds[1];
+        loserScore = room.state.scores.shipTwo;
+      }
+      else if (room.state.scores.shipOne < room.state.scores.shipTwo) {
+        winningShip = room.usernames[1];
+        winnerId = room.userIds[1];
+        winnerScore = room.state.scores.shipTwo;
+        loserId = room.userIds[0];
+        loserScore = room.state.scores.shipOne;
+      }
+      else {
+        winningShip = "Tie";
+      }
+
+      if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
+        const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
+        const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
+
+        try {
+          await saveReplay(gameId, room.replay);
+        } catch (err) {
+          console.error("Failed to save replay: ", err);
+        }
+      }
+
+      io.to(roomId).emit("gameOver", {winner: winningShip, players: room.usernames, scores: room.state.scores});
+    }
+}
+
+
+//Pre: length is length of room ID to generate
+//Post: returns a random alphanumeric string of given length
 function generateRoomId(length = 6) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let id = '';
@@ -546,6 +587,9 @@ function generateRoomId(length = 6) {
   return id;
 }
 
+
+//Pre: none
+//Post: either finds existing room with space or creates new room, then returns room ID
 function findOrCreateRoom() {
   for (const id in rooms) {
     if (rooms[id] && rooms[id].players.length < 2) return id;
@@ -579,10 +623,10 @@ function findOrCreateRoom() {
 }
 
 
-
 // Server-wide asteroid tick
 const ASTEROID_TICK_MS = 50; // send updates every 100ms
 let lastServerTick = Date.now();
+
 
 function serverAsteroidTick() {
   const now = Date.now();

@@ -13,7 +13,8 @@ const pool = mysql2.createPool({
 }).promise();
 
 
-///Create user
+//Pre: username and password are strings
+//Post: creates new user in USERS table, returns the user_id of new user or null if username exists
 export async function createUser(username, password) {
     try {
         const [r1] = await pool.execute("SELECT user_id FROM USERS WHERE username = ?", [username]);
@@ -30,13 +31,15 @@ export async function createUser(username, password) {
     }
 }
 
-///Verify user login
+//Pre: username and password are strings
+//Post: returns user_id if username and password match a record in USERS table, else null
 export async function isValidUser(username, password) {
     const [result] = await pool.execute("SELECT user_id FROM USERS WHERE username = ? AND password = ?", [username, password]);
     return result.length > 0 ? result[0].user_id : null;
 }
 
-///Get user highscore
+//Pre: username is string
+//Post: returns the highest score of the user with given username, or null if user not found
 export async function getUserHighScore(username) {
     const [rows] = await pool.execute(`SELECT MAX(p.score) AS personal_best FROM participants p JOIN users u ON u.user_id = p.user_id WHERE u.username = ?`, [username]);
     if (rows.length > 0) {
@@ -46,13 +49,15 @@ export async function getUserHighScore(username) {
     }
 }
 
-///Get top n high scores
+//Pre: n is number of top scores to retrieve
+//Post: returns array of top n high scores with usernames
 export async function getTopHighScores(n) {
     const [rows] = await pool.execute(`SELECT username, score FROM PARTICIPANTS p LEFT JOIN USERS u ON u.user_id = p.user_id ORDER BY p.score DESC LIMIT ${Number(n)}`);
     return rows;
 }
 
-///Create game record
+//Pre: userId1 and userId2 are the user IDs of the two players
+//Post: creates a new game record in GAMES and PARTICIPANTS tables, returns the new game_id
 export async function createGameRecord(userId1, userId2) {
     try {
         const [result] = await pool.execute("INSERT INTO GAMES () VALUES ()")
@@ -65,13 +70,16 @@ export async function createGameRecord(userId1, userId2) {
     }
 }
 
-///Log action time
+//Pre: gameId, userId are IDs, currentScore is number
+//Post: updates PARTICIPANTS record with current score and last action time
+export
 async function logActionTime(gameId, userId, currentScore) {
     const [result] = await pool.execute("UPDATE PARTICIPANTS SET score = ?, last_action_time = NOW() WHERE game_id = ? AND user_id = ?", [currentScore, gameId, userId]);
     return result;
 }
 
-///Record game stats
+//Pre: gameId, winnerId, loserId are IDs, winnerScore and loserScore are numbers
+//Post: updates PARTICIPANTS and USERS tables with final scores and win/loss info for the given game
 export async function recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore) {
     try {
         const [result1] = await pool.execute("UPDATE PARTICIPANTS SET score = ?, last_action_time = NOW(), is_winner = 1 WHERE game_id = ? AND user_id = ?", [winnerScore, gameId, winnerId]);
@@ -95,7 +103,7 @@ export async function saveReplay(gameId, replayData) {
     }
 }
 
-//Get game replay
+//Get game replay events
 export async function getReplay(gameId) {
     try {
         const [result] = await pool.execute("SELECT replay_data FROM GAME_REPLAYS WHERE game_id = ?", [gameId]);
@@ -106,6 +114,8 @@ export async function getReplay(gameId) {
     }
 }
 
+//Pre: userId is ID of user in USERS table
+//Post: returns array of game records for the user
 export async function getUserGames(userId) {
     try {
         const [rows] = await pool.execute(`
@@ -127,5 +137,3 @@ export async function getUserGames(userId) {
         throw err;
     }
 }
-
-///TODO: update to add number of matches played column to users table and methods/table for powerups
