@@ -1,5 +1,6 @@
 import mysql2 from "mysql2";
 import dotenv from "dotenv";
+import bcrypt from "bcrypt";
 
 ///load env variables
 dotenv.config();
@@ -12,36 +13,64 @@ const pool = mysql2.createPool({
     database: process.env.mySQL_Database
 }).promise();
 
+const SALT_ROUNDS = 12;  // Good balance of security & speed
 
-//Pre: username and password are strings
-//Post: creates new user in USERS table, returns the user_id of new user or null if username exists
+// Private helper: is not included in exports
+//Pre: password is string
+//Post: returns hashed password
+async function _hashPassword(password) {
+    return bcrypt.hash(password, SALT_ROUNDS);
+}
+
+// Private helper: is not included in exports
+//Pre: password is string, hash is hashed password string
+//Post: returns true if password matches hash, else false
+async function _verifyPassword(password, hash) {
+    return bcrypt.compare(password, hash);
+}
+
+// Pre: username and password are strings
+// Post: creates new user in USERS table, returns the user_id of new user or null if username exists
 export async function createUser(username, password) {
     try {
-        const [r1] = await pool.execute("SELECT user_id FROM USERS WHERE username = ?", [username]);
-        if (r1.length > 0) {
+        const [existing] = await pool.execute("SELECT user_id FROM USERS WHERE username = ?",[username]);
+        if (existing.length > 0) {
             console.warn(`Username "${username}" already exists.`);
-            return null; 
+            return null;
         } else {
-        const [result] = await pool.execute("INSERT INTO USERS (username, password, highest_score, win_count) VALUES (?, ?, ?, ?)", [username, password, 0, 0]);
-        return result.insertId;
+            // Only hash the password if it's non-empty (for guest users)
+            const hashed = password ? await _hashPassword(password) : "";
+            const [result] = await pool.execute("INSERT INTO USERS (username, password, highest_score, win_count) VALUES (?, ?, ?, ?)",[username, hashed, 0, 0]);
+            return result.insertId;
         }
-    }   catch (err) {
+    } catch (err) {
         console.error("Unexpected DB error:", err);
         throw err;
     }
 }
 
-//Pre: username and password are strings
-//Post: returns user_id if username and password match a record in USERS table, else null
+// Pre: username and password are strings
+// Post: returns user_id if username/password match, else null
 export async function isValidUser(username, password) {
-    const [result] = await pool.execute("SELECT user_id FROM USERS WHERE username = ? AND password = ?", [username, password]);
-    return result.length > 0 ? result[0].user_id : null;
+    //guest login doesn't need a password
+    if (username === "guest") {
+        const [rows] = await pool.execute("SELECT user_id FROM USERS WHERE username = ?", [username]);
+        return rows.length > 0 ? rows[0].user_id : null;
+    }
+
+    // Normal user login with password verification
+    const [rows] = await pool.execute("SELECT user_id, password FROM USERS WHERE username = ?",[username]);
+    if (rows.length === 0) return null;
+
+    const { user_id, password: storedHash } = rows[0];
+    const match = await _verifyPassword(password, storedHash);
+    return match ? user_id : null;
 }
 
 //Pre: username is string
 //Post: returns the highest score of the user with given username, or null if user not found
 export async function getUserHighScore(username) {
-    const [rows] = await pool.execute(`SELECT MAX(p.score) AS personal_best FROM participants p JOIN users u ON u.user_id = p.user_id WHERE u.username = ?`, [username]);
+    const [rows] = await pool.execute(`SELECT MAX(p.score) AS personal_best FROM PARTICIPANTS p JOIN USERS u ON u.user_id = p.user_id WHERE u.username = ?`, [username]);
     if (rows.length > 0) {
         return rows[0].personal_best;
     } else {
@@ -60,12 +89,13 @@ export async function getTopHighScores(n) {
 //Post: creates a new game record in GAMES and PARTICIPANTS tables, returns the new game_id
 export async function createGameRecord(userId1, userId2) {
     try {
-        const [result] = await pool.execute("INSERT INTO GAMES () VALUES ()")
+        const [result] = await pool.execute("INSERT INTO GAMES (play_date_time) VALUES (NOW())")
         const gameId = result.insertId; 
         const participants = await pool.execute("INSERT INTO PARTICIPANTS (game_id, user_id, score) VALUES (?, ?, ?), (?, ?, ?)", [gameId, userId1, 0, gameId, userId2, 0]);
         return gameId;
     } catch (err) {
         console.error("Unexpected DB error:", err);
+        console.log("Failed to create game record for users:", userId1, userId2);
         throw err;
     }
 }
@@ -85,6 +115,7 @@ export async function recordGameStats(gameId, winnerId, loserId, winnerScore, lo
         const [result1] = await pool.execute("UPDATE PARTICIPANTS SET score = ?, last_action_time = NOW(), is_winner = 1 WHERE game_id = ? AND user_id = ?", [winnerScore, gameId, winnerId]);
         const [result2] = await pool.execute("UPDATE PARTICIPANTS SET score = ?, last_action_time = NOW(), is_winner = 0 WHERE game_id = ? AND user_id = ?", [loserScore, gameId, loserId]);
         const [result3] = await pool.execute("UPDATE USERS SET win_count = win_count + 1, highest_score = GREATEST(highest_score, ?) WHERE user_id = ?", [winnerScore, winnerId]);
+        const [result4] = await pool.execute("UPDATE USERS SET highest_score = GREATEST(highest_score, ?) WHERE user_id = ?", [loserScore, loserId]);
         return result1;   
     } catch (error) {
         console.error("Unexpected DB error:", error);
