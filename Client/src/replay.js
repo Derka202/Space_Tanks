@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, Assets } from "pixi.js";
 import { AsteroidField } from "./asteroidField.js";
+import { PowerUp } from "./powerup.js";
 import { Button } from "@pixi/ui";
 import { Ship } from "./ship.js";
 
@@ -138,6 +139,8 @@ export default class ReplayScene {
         this.shipTwoFuelText.y = 40;
         this.container.addChild(this.shipOneFuelText);
         this.container.addChild(this.shipTwoFuelText);
+
+        this.powerups = [];
     }
 
     // Pre: None
@@ -160,7 +163,7 @@ export default class ReplayScene {
 
     // Pre: index is the index of the frame being displayed
     // Post: Show the frame at the index
-    showFrame(index) {
+    async showFrame(index) {
         const frame = this.frames[index];
 
         // If the player has not moved their position is a null value, if this is the case update the values to the default positions
@@ -189,6 +192,19 @@ export default class ReplayScene {
 
         if (frame.asteroids) {
             this.asteroidField.syncFromServer(frame.asteroids, this.container);
+        }
+
+        this.powerups.forEach(p => this.container.removeChild(p.sprite));
+        this.powerups = []
+
+        for (const pData of frame.uncollectedPowerups || []) {
+            const texture = await Assets.load(`assets/${pData.type}.png`);
+            const powerup = new PowerUp(pData.type, pData.x, pData.y, texture)
+            powerup.sprite.x = pData.x;
+            powerup.sprite.y = pData.y;
+            this.container.addChild(powerup.sprite);
+            this.powerups.push(powerup);
+
         }
     }
 

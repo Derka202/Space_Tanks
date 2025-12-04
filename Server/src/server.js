@@ -379,7 +379,7 @@ async function progressTurn(roomId) {
   const room = rooms[roomId];
 
   // Update asteroids before turn change
-  room.asteroidField.updateAll(1000);
+  room.asteroidField.updateAll(100);
 
   //Record Game Events
     room.replay.turns.push({
@@ -538,7 +538,7 @@ function serverAsteroidTick() {
     const room = rooms[roomId];
     if (!room || !room.asteroidField) continue;
 
-    room.asteroidField.updateAll(deltaMS);
+    room.asteroidField.updateAll(deltaMS * 0.5);
     io.to(roomId).emit("asteroidUpdate", {
       asteroidState: room.asteroidField.getState(),
       timestamp: now

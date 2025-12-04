@@ -4,6 +4,8 @@ import { Button } from "@pixi/ui";
 export default class PlayerHistoryScene {
     constructor(userId, startReplay, backToMenu, baseWidth, baseHeight) {
         this.container = new Container();
+        this.scrollContainer = new Container();
+        this.scrollSpeed = 20;
         this.userId = userId;
         this.startReplay = startReplay;
         this.backToMenu = backToMenu;
@@ -33,7 +35,8 @@ export default class PlayerHistoryScene {
         backText.x = backBg.width / 2;
         backText.y = backBg.height / 2;
         backButton.view.addChild(backText);
-        backButton.view.y = -this.baseHeight / 2 + 120;
+        backButton.view.x = 175;
+        backButton.view.y = 240;
         column.addChild(backButton.view);
 
         this.gameListY = -this.baseHeight / 2 + 180;
@@ -41,6 +44,28 @@ export default class PlayerHistoryScene {
         column.x = this.baseWidth / 2;
         column.y = this.baseHeight / 2;
         this.container.addChild(column);
+
+        const mask = new Graphics().rect(0, 0, 350, this.baseHeight - 150).fill(0xffffff);
+        mask.x = -150;
+        mask.y = -this.baseHeight / 2 + 100;
+
+        this.scrollContainer.x = -150;
+        this.scrollContainer.y = mask.y;
+        this.scrollContainer.mask = mask;
+        this.column.addChild(mask);
+        this.column.addChild(this.scrollContainer);
+
+        window.addEventListener("wheel", (e) => {
+            if (!this.container.visible) return;
+
+            this.scrollContainer.y += -e.deltaY > 0 ? this.scrollSpeed : -this.scrollSpeed;
+
+            const minY = - (this.gameListY - (-this.baseHeight / 2 + 180));
+            const maxY = 0;
+
+            if (this.scrollContainer.y < minY) this.scrollContainer.y = minY;
+            if (this.scrollContainer.y > maxY) this.scrollContainer.y = maxY;
+        });
     }
 
     // Pre: None
@@ -49,6 +74,7 @@ export default class PlayerHistoryScene {
         console.log("loading games");
         try{
             const serverUrl = (import.meta.env.VITE_SERVER_URL) || "http://localhost:3000";
+            console.log(this.userId);
             const res = await fetch(`${serverUrl}/getusergames?userid=${this.userId}`);
             console.log(res);
             const data = await res.json();
@@ -64,7 +90,7 @@ export default class PlayerHistoryScene {
                 gameText.y = gameBg.height / 2;
                 gameButton.view.addChild(gameText);
                 gameButton.view.y = this.gameListY;
-                this.column.addChild(gameButton.view);
+                this.scrollContainer.addChild(gameButton.view);
 
                 this.gameListY += 50;
             });

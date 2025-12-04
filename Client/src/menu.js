@@ -39,9 +39,9 @@ export default class MainMenuScene {
         }
 
         createButton("Play", -50, onPlay);
-        createButton("Player History", 20, onHistory);
-        createButton("High Scores", 90, onHighScores);
-        createButton("Instructions", 160, onInstructions);
+        createButton("High Scores", 20, onHighScores);
+        createButton("Instructions", 90, onInstructions);
+        if (username !== "guest") createButton("Player History", 160, onHistory);
 
         column.x = baseWidth / 2;
         column.y = baseHeight / 2;
