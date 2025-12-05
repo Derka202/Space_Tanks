@@ -5,6 +5,7 @@ import { AsteroidField } from "./AsteroidField.js";
 
 const rooms = {};
 const socketRooms = {};
+let guestId; 
 
 //Pre: req is incoming HTTP request: this callback handles the request and routes it manually
 //Post: processes HTTP requests for user registration, login, highscores, game records, and user games
@@ -363,9 +364,9 @@ io.on("connection", (socket) => {
 //Pre: none
 //Post: starts HTTP and WebSocket server on port 3000, ensures guest user exists
 httpServer.listen(3000, async () => {
-  console.log("Server running on http://localhost:3000");
+  //console.log("Server running on http://localhost:3000");
 
-  let guestId = await isValidUser("guest", "");
+  guestId = await isValidUser("guest", "");
   if (!guestId) {
     guestId = await createUser("guest", "");
     console.log("Created Guest user with ID:", guestId);
@@ -460,17 +461,34 @@ async function progressTurn(roomId) {
         winningShip = "Tie";
       }
 
-      if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
-        const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
-        const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
+      // if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
+      //   const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
+      //   const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
+
+      //   try {
+      //     await saveReplay(gameId, room.replay);
+      //   } catch (err) {
+      //     console.error("Failed to save replay: ", err);
+      //   }
+      // }
+
+
+      // Record game if at least one player is not a guest
+      if (!(room.userIds[0] === guestId && room.userIds[1] === guestId)) {
+
+        //Rename the -1 guest ID to the actual guest user ID so the insert doesn't break
+        const dbUserId0 = room.userIds[0] === -1 ? guestId : room.userIds[0];
+        const dbUserId1 = room.userIds[1] === -1 ? guestId : room.userIds[1];
+        const gameId = await createGameRecord(dbUserId0, dbUserId1);
+        await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
 
         try {
-          await saveReplay(gameId, room.replay);
+            await saveReplay(gameId, room.replay);
         } catch (err) {
-          console.error("Failed to save replay: ", err);
+            console.error("Failed to save replay: ", err);
         }
       }
-
+      
       io.to(roomId).emit("gameOver", {winner: winningShip, players: room.usernames, scores: room.state.scores});
     }
 }

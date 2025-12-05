@@ -65,10 +65,9 @@ import HighScoresScene from './highScores.js';
         gameWorld.removeChild(welcomeScene.view);
 
         if (choice.type === "guest") {
-            user = "Guest";
+            user = "guest";
             userId = -1;
-            const res = new Text();
-            submitLogin({username: "guest", password: ""}, res);
+            mainMenu(user);
             return;
         } else if (choice.type === "login") {
             const loginScene = new LoginScene(submitLogin, backToWelcome, baseWidth, baseHeight);
@@ -146,26 +145,33 @@ import HighScoresScene from './highScores.js';
     // Pre: info is the login infornation stored in an object, res is the object to display results of login
     // Post: sends login info to server and displays results to user
     async function submitLogin(info, res) {
-        // Send login information to the server
-    const response = await fetch(`${serverUrl}/login`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({username: info.username, password: info.password})
-        });
-        // Wait for response
-        const data = await response.json();
+        res.text = "";
+        try {
+            const response = await fetch(`${serverUrl}/login`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({username: info.username, password: info.password})
+            });
+            // Wait for response
+            const data = await response.json();
 
-        // If login is unsuccessful, the user submitted an incorrect login
-        if(!data.success) {
-            res.text = "Error: Incorrect Login";
+            // If login is unsuccessful, the user submitted an incorrect login
+            if (!data.success) {
+                res.text = "Error: Incorrect Username or Password";
+                res.style.fill = "#FF0000";
+                return;
+            }
+
+            // Successful login
+            userId = data.userId;
+            user = info.username;
+            mainMenu(info.username);
+
+        } catch (err) {
+            res.text = "Error: Could not reach server";
             res.style.fill = "#FF0000";
-            return;
+            console.error("Login fetch failed:", err);
         }
-
-        // Successful login, proceed to main menu
-        userId = data.userId;
-        user = info.username;
-        mainMenu(info.username);
     }
 
     // Pre: None
