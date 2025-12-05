@@ -461,18 +461,6 @@ async function progressTurn(roomId) {
         winningShip = "Tie";
       }
 
-      // if (!(room.userIds[0] === 1 && room.userIds[1] === 1)) {
-      //   const gameId = await createGameRecord(room.userIds[0], room.userIds[1]);
-      //   const gameRecord = await recordGameStats(gameId, winnerId, loserId, winnerScore, loserScore);
-
-      //   try {
-      //     await saveReplay(gameId, room.replay);
-      //   } catch (err) {
-      //     console.error("Failed to save replay: ", err);
-      //   }
-      // }
-
-
       // Record game if at least one player is not a guest
       if (room.userIds[0] !== room.userIds[1]) {
 
