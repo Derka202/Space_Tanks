@@ -99,17 +99,6 @@ const httpServer = createServer(async (req, res) => {
     }
   }
 
-  if (req.method === "POST" && req.url === "/creategamerecord") {
-    try {
-      const ids = await getJsonBody(req);
-
-      const gameId = await createGameRecord(ids.userId1, ids.userId2);
-      sendJson(res, {success: true, gameId});
-    } catch (err) {
-      sendJson(res, {success: false, error: err.message}, 500);
-    }
-  }
-
   if (req.method === "GET" && req.url.startsWith("/getusergames")) {
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
