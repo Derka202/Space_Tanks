@@ -474,7 +474,7 @@ async function progressTurn(roomId) {
 
 
       // Record game if at least one player is not a guest
-      if (!(room.userIds[0] === guestId && room.userIds[1] === guestId)) {
+      if (room.userIds[0] !== room.userIds[1]) {
 
         //Rename the -1 guest ID to the actual guest user ID so the insert doesn't break
         const dbUserId0 = room.userIds[0] === -1 ? guestId : room.userIds[0];
